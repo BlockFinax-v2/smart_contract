@@ -1,0 +1,209 @@
+[dotenv@17.2.3] injecting env (4) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+⚠️  BASESCAN_API_KEY is not set. Contract verification will be skipped.
+
+╔════════════════════════════════════════════════════════════╗
+║         BlockFinax Diamond Token Deployment Script        ║
+║                    Base Sepolia Testnet                    ║
+╚════════════════════════════════════════════════════════════╝
+
+📡 Network: baseSepolia
+🔗 Chain ID: 84532n
+👤 Deployer: 0xf070F568c125b2740391136662Fc600A2A29D2A6
+💰 Balance: 0.009996203669492719 ETH
+🔑 Using Private Key: ✓ Loaded
+🔐 Basescan API Key: ✗ Missing (verification will be skipped)
+🌐 RPC URL: https://sepolia.base.org
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 Deploying Diamond Standard Facets...
+
+📦 Deploying DiamondCutFacet...
+   ✅ DiamondCutFacet: 0xF070ace036e20824E2ed14D9c3F45e1D6414a17E
+📦 Deploying DiamondLoupeFacet...
+   ✅ DiamondLoupeFacet: 0x308cf4Dc666EfaE5Ee2035e4e96d603ed6632420
+📦 Deploying OwnershipFacet...
+   ✅ OwnershipFacet: 0x75e60831a6d320cF04386a2E6A0400bA6e99d044
+
+� Deploying Business Logic Facets...
+
+�📦 Deploying ContractManagementFacet...
+   ✅ ContractManagementFacet: 0xB3da21Dd7e7FA2cE379290C0C02dE2d45Ed6702c
+📦 Deploying DocumentManagementFacet...
+   ✅ DocumentManagementFacet: 0x36914734FF46Bc5ee5FDe91180Fe8Eab04933484
+📦 Deploying EscrowFacet...
+   ✅ EscrowFacet: 0xfAEe0056eBFb0F40b1138F1C3df4E7B27a159e61
+📦 Deploying GovernanceFacet...
+   ✅ GovernanceFacet: 0x4f465d228F3244e4f76508C7D754023c90414Ae9
+📦 Deploying InvoiceFacet...
+   ✅ InvoiceFacet: 0x020da3CD783e56eC270C169Dd5AFba3d3b0e149F
+📦 Deploying LiquidityPoolFacet...
+   ✅ LiquidityPoolFacet: 0x6ce69B08684B8a82d35E08Ca37F9Ac97Fe04124a
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💎 Deploying Diamond Proxy...
+   ✅ Diamond Proxy: 0x9E92589491846Ea0bA2d6B1B80330a3f86135195
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✂️  Preparing Facet Cuts...
+
+   ✓ DiamondLoupeFacet - 5 functions
+   ✓ OwnershipFacet - 2 functions
+   ✓ ContractManagementFacet - 44 functions
+   ✓ DocumentManagementFacet - 20 functions
+   ✓ EscrowFacet - 15 functions
+   ✓ GovernanceFacet - 8 functions
+   ✓ InvoiceFacet - 12 functions
+   ✓ LiquidityPoolFacet - 9 functions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 Deploying DiamondInit...
+   ✅ DiamondInit: 0xD9eAb454D692414A7E793Ef5CCC791B503615E17
+
+💫 Executing Diamond Cut...
+
+❌ Deployment failed:
+
+ProviderError: execution reverted: LibDiamondCut: Can't add function that already exists
+    at HttpProvider.request (/home/bilal/bilal_projects/BlockFinax/contract/node_modules/hardhat/src/internal/core/providers/http.ts:116:21)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async HardhatEthersProvider.estimateGas (/home/bilal/bilal_projects/BlockFinax/contract/node_modules/@nomicfoundation/hardhat-ethers/src/internal/hardhat-ethers-provider.ts:246:27)
+    at async /home/bilal/bilal_projects/BlockFinax/contract/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:335:35
+    at async Promise.all (index 0)
+    at async HardhatEthersSigner._sendUncheckedTransaction (/home/bilal/bilal_projects/BlockFinax/contract/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:356:7)
+    at async HardhatEthersSigner.sendTransaction (/home/bilal/bilal_projects/BlockFinax/contract/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
+    at async send (/home/bilal/bilal_projects/BlockFinax/contract/node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at async Proxy.diamondCut (/home/bilal/bilal_projects/BlockFinax/contract/node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at async main (/home/bilal/bilal_projects/BlockFinax/contract/scripts/deploy.ts:285:14)
+[dotenv@17.2.3] injecting env (4) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 📡 add observability to secrets: https://dotenvx.com/ops
+⚠️  BASESCAN_API_KEY is not set. Contract verification will be skipped.
+
+╔════════════════════════════════════════════════════════════╗
+║         BlockFinax Diamond Token Deployment Script        ║
+║                    Base Sepolia Testnet                    ║
+╚════════════════════════════════════════════════════════════╝
+
+📡 Network: baseSepolia
+🔗 Chain ID: 84532n
+👤 Deployer: 0xf070F568c125b2740391136662Fc600A2A29D2A6
+💰 Balance: 0.009982560131674293 ETH
+🔑 Using Private Key: ✓ Loaded
+🔐 Basescan API Key: ✗ Missing (verification will be skipped)
+🌐 RPC URL: https://sepolia.base.org
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 Deploying Diamond Standard Facets...
+
+📦 Deploying DiamondCutFacet...
+   ✅ DiamondCutFacet: 0xA02409fB50c90D97304fF37230e2202E3EA384be
+📦 Deploying DiamondLoupeFacet...
+   ✅ DiamondLoupeFacet: 0x471Fb8C51430C145bcae95f78a0A66E4A63520C9
+📦 Deploying OwnershipFacet...
+   ✅ OwnershipFacet: 0xE65B037ec83eA37E86Cd72675407BaA3594941Bb
+
+� Deploying Business Logic Facets...
+
+�📦 Deploying ContractManagementFacet...
+   ✅ ContractManagementFacet: 0x2a2e859241FafABc8fAa515Fd69736e7cB53c7d6
+📦 Deploying DocumentManagementFacet...
+   ✅ DocumentManagementFacet: 0x1479c03b2F6a797061C9BBF566CcdD5E97FB7a3d
+📦 Deploying EscrowFacet...
+   ✅ EscrowFacet: 0xE55711F2f4f564D187082eE187FCc03F4be7FC43
+📦 Deploying GovernanceFacet...
+   ✅ GovernanceFacet: 0xB92925516501f9bf5bAD5643b276AE384852b508
+📦 Deploying InvoiceFacet...
+   ✅ InvoiceFacet: 0x72e1831B54cA0b089c811adD6e16732f77e90f77
+📦 Deploying LiquidityPoolFacet...
+   ✅ LiquidityPoolFacet: 0x2a32b6c004A1f71412FaF82c9E65db17232e6E1b
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💎 Deploying Diamond Proxy...
+   ✅ Diamond Proxy: 0x65C4ce15C9DFA916db081A41340C3c862F0a3343
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✂️  Preparing Facet Cuts...
+
+   ✓ DiamondLoupeFacet - 5 functions
+   ✓ OwnershipFacet - 2 functions
+   ✓ ContractManagementFacet - 44 functions
+   ✓ DocumentManagementFacet - 20 functions
+   ✓ EscrowFacet - 15 functions (includes pause controls)
+   ✓ GovernanceFacet - 5 functions
+   ✓ InvoiceFacet - 9 functions
+   ✓ LiquidityPoolFacet - 6 functions
+
+   ℹ️  Note: pause/unpause/paused functions managed by EscrowFacet
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔧 Deploying DiamondInit...
+   ✅ DiamondInit: 0x2776C557702e297fb25603c89604683DDD5F5023
+
+💫 Executing Diamond Cut...
+   ⏳ Transaction hash: 0x7a412a3ed0682544db16488f95da3e3d3461bc6741ef411b5d957ff4a6aa56d6
+   ✅ Diamond Cut executed successfully!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+╔════════════════════════════════════════════════════════════╗
+║              Deployment Summary                            ║
+╚════════════════════════════════════════════════════════════╝
+
+💎 DIAMOND PROXY
+   Address: 0x65C4ce15C9DFA916db081A41340C3c862F0a3343
+   Explorer: https://sepolia.basescan.org/address/0x65C4ce15C9DFA916db081A41340C3c862F0a3343
+
+📋 IMPLEMENTATION CONTRACTS
+
+   DiamondCutFacet
+   └─ 0xA02409fB50c90D97304fF37230e2202E3EA384be
+      https://sepolia.basescan.org/address/0xA02409fB50c90D97304fF37230e2202E3EA384be
+   DiamondLoupeFacet
+   └─ 0x471Fb8C51430C145bcae95f78a0A66E4A63520C9
+      https://sepolia.basescan.org/address/0x471Fb8C51430C145bcae95f78a0A66E4A63520C9
+   OwnershipFacet
+   └─ 0xE65B037ec83eA37E86Cd72675407BaA3594941Bb
+      https://sepolia.basescan.org/address/0xE65B037ec83eA37E86Cd72675407BaA3594941Bb
+   ContractManagementFacet
+   └─ 0x2a2e859241FafABc8fAa515Fd69736e7cB53c7d6
+      https://sepolia.basescan.org/address/0x2a2e859241FafABc8fAa515Fd69736e7cB53c7d6
+   DocumentManagementFacet
+   └─ 0x1479c03b2F6a797061C9BBF566CcdD5E97FB7a3d
+      https://sepolia.basescan.org/address/0x1479c03b2F6a797061C9BBF566CcdD5E97FB7a3d
+   EscrowFacet
+   └─ 0xE55711F2f4f564D187082eE187FCc03F4be7FC43
+      https://sepolia.basescan.org/address/0xE55711F2f4f564D187082eE187FCc03F4be7FC43
+   GovernanceFacet
+   └─ 0xB92925516501f9bf5bAD5643b276AE384852b508
+      https://sepolia.basescan.org/address/0xB92925516501f9bf5bAD5643b276AE384852b508
+   InvoiceFacet
+   └─ 0x72e1831B54cA0b089c811adD6e16732f77e90f77
+      https://sepolia.basescan.org/address/0x72e1831B54cA0b089c811adD6e16732f77e90f77
+   LiquidityPoolFacet
+   └─ 0x2a32b6c004A1f71412FaF82c9E65db17232e6E1b
+      https://sepolia.basescan.org/address/0x2a32b6c004A1f71412FaF82c9E65db17232e6E1b
+   DiamondInit
+   └─ 0x2776C557702e297fb25603c89604683DDD5F5023
+      https://sepolia.basescan.org/address/0x2776C557702e297fb25603c89604683DDD5F5023
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Deployment completed successfully!
+
+
+❌ Deployment failed:
+
+TypeError: (0 , test_diamond_1.testDiamondIntegration) is not a function
+    at main (/home/bilal/bilal_projects/BlockFinax/contract/scripts/deploy.ts:355:31)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
