@@ -33,7 +33,9 @@ const config: HardhatUserConfig = {
       url: BASE_SEPOLIA_RPC,
       accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
       chainId: 84532,
-      gasPrice: "auto"
+      gasPrice: "auto",
+      timeout: 60000,
+      httpHeaders: {},
     },
     // Keep Base mainnet config for future use
     base: {

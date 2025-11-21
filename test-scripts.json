@@ -1,0 +1,12 @@
+{
+  "name": "liquidity-pool-testing",
+  "description": "Comprehensive test suite for LiquidityPoolFacet",
+  "scripts": {
+    "test:unit": "npx hardhat test test/LiquidityPoolFacet.test.js",
+    "test:fuzz": "npx hardhat test test/LiquidityPoolFacet.fuzz.test.js",
+    "test:integration": "npx hardhat test test/LiquidityPoolFacet.integration.test.js",
+    "test:all": "npx hardhat test test/LiquidityPoolFacet*.js",
+    "test:coverage": "npx hardhat coverage --testfiles 'test/LiquidityPoolFacet*.js'",
+    "test:gas": "REPORT_GAS=true npx hardhat test test/LiquidityPoolFacet*.js"
+  }
+}

@@ -9,6 +9,9 @@ library LibAppStorage {
         uint256 timestamp;
         uint256 votingPower;
         bool active;
+        uint256 lastRewardTimestamp;
+        uint256 pendingRewards;
+        uint256 rewardDebt;
     }
 
     struct TradeFinanceRequest {
@@ -24,7 +27,13 @@ library LibAppStorage {
         bool fundsReleased;
     }
 
-    enum RequestStatus { Pending, Approved, Rejected, Funded, Completed }
+    enum RequestStatus {
+        Pending,
+        Approved,
+        Rejected,
+        Funded,
+        Completed
+    }
 
     struct Milestone {
         string title;
@@ -35,7 +44,11 @@ library LibAppStorage {
         bool released;
     }
 
-    enum MilestoneStatus { Pending, Completed, Released }
+    enum MilestoneStatus {
+        Pending,
+        Completed,
+        Released
+    }
 
     struct Escrow {
         uint256 id;
@@ -58,8 +71,20 @@ library LibAppStorage {
         mapping(address => string[]) subWalletPermissions;
     }
 
-    enum EscrowStatus { Created, Funded, InProgress, Completed, Disputed, Refunded }
-    enum DisputeStatus { None, Raised, InArbitration, Resolved }
+    enum EscrowStatus {
+        Created,
+        Funded,
+        InProgress,
+        Completed,
+        Disputed,
+        Refunded
+    }
+    enum DisputeStatus {
+        None,
+        Raised,
+        InArbitration,
+        Resolved
+    }
 
     struct Invoice {
         uint256 id;
@@ -75,7 +100,14 @@ library LibAppStorage {
         string termsHash;
     }
 
-    enum InvoiceStatus { Draft, Sent, Viewed, Paid, Overdue, Cancelled }
+    enum InvoiceStatus {
+        Draft,
+        Sent,
+        Viewed,
+        Paid,
+        Overdue,
+        Cancelled
+    }
 
     struct DocumentRecord {
         bytes32 documentHash;
@@ -88,7 +120,15 @@ library LibAppStorage {
         bool verified;
     }
 
-    enum DocumentType { Contract, Invoice, ProofOfDelivery, LegalDocument, Specification, ComplianceCert, Other }
+    enum DocumentType {
+        Contract,
+        Invoice,
+        ProofOfDelivery,
+        LegalDocument,
+        Specification,
+        ComplianceCert,
+        Other
+    }
 
     struct AppStorage {
         // Liquidity Pool Storage
@@ -96,9 +136,14 @@ library LibAppStorage {
         mapping(address => Stake) stakes;
         address[] stakers;
         uint256 totalStaked;
-        uint256 totalLPs;
+        uint256 totalLiquidityProviders;
         uint256 minimumStake;
-
+        // Enhanced Staking Configuration
+        uint256 initialApr;
+        uint256 currentRewardRate;
+        uint256 minLockDuration;
+        uint256 aprReductionPerThousand;
+        uint256 emergencyWithdrawPenalty;
         // Governance Storage
         mapping(string => TradeFinanceRequest) requests;
         mapping(string => mapping(address => bool)) hasVoted;
@@ -106,19 +151,16 @@ library LibAppStorage {
         uint256 totalRequests;
         uint256 totalFunded;
         uint256 approvalThreshold;
-
         // Escrow Storage
         mapping(uint256 => Escrow) escrows;
         uint256 escrowCounter;
         uint256 totalEscrows;
         uint256 activeEscrows;
-
         // Invoice Storage
         mapping(uint256 => Invoice) invoices;
         mapping(string => uint256) invoiceNumberToId;
         uint256 invoiceCounter;
         uint256 totalInvoices;
-
         // Document Storage
         mapping(bytes32 => DocumentRecord) documents; // hash -> document
         mapping(address => bytes32[]) userDocuments; // user -> their document hashes
