@@ -13,6 +13,9 @@ import {IDiamondCut} from "./interfaces/IDiamondCut.sol";
 
 contract Diamond {
     constructor(address _contractOwner, address _diamondCutFacet) payable {
+        require(_contractOwner != address(0), "Diamond: Invalid owner");
+        require(_diamondCutFacet != address(0), "Diamond: Invalid facet");
+
         LibDiamond.setContractOwner(_contractOwner);
 
         IDiamondCut.FacetCut[] memory cut = new IDiamondCut.FacetCut[](1);
