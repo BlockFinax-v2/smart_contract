@@ -1,0 +1,106 @@
+{
+  "liskSepolia": {
+    "diamond": "0xe1A27Ee53D0E90F024965E6826e0BCA28946747A",
+    "diamondInit": "0x96a6e5A74c6EDbBfB0e32C2A0521cF2023d6d4d0",
+    "diamondCutFacet": "0x75b518110D92d46D2f30902C82Eef5F4a976f562",
+    "mockUSDC": "0x193F23a8982ea4a91558a0d5e8D13508f722AAD5",
+    "facets": [
+      {
+        "name": "DiamondLoupeFacet",
+        "address": "0x29A5AFd7d081c5A38C23699C9b5c6a368624dcf0",
+        "txHash": "0xc7aa34d171e1962052b8117d09e20d7093350cddd339302c55d43b35e2a9027d",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765462137920,
+        "verified": true,
+        "updated": false,
+        "contentHash": "0469d0425c73b8e79e4669698f1ff18d1338c2bb72a55d32b8b05a9e8d779454"
+      },
+      {
+        "name": "GovernanceFacet",
+        "address": "0x305a7a5A18d68142740B9847d2AC7B541Cd4d3a9",
+        "txHash": "0x66de8a7e64287508edeb45b0c11a4726cfe040a43eec8b449a031a6a0fba3b15",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765462163980,
+        "verified": true,
+        "updated": false,
+        "contentHash": "39687417d17c39c31f432491e22905c1dbb77db83ba32cd2dab32d27291047de"
+      },
+      {
+        "name": "LiquidityPoolFacet",
+        "address": "0x8f7AcDA0316Ad4f8511D01fD690FfBF7157C9dd9",
+        "txHash": "0x8370495ad301c92dfdab8178a711405ab7a39808e8b14d4cc87c48e8c6baf8fe",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765462175490,
+        "verified": true,
+        "updated": false,
+        "contentHash": "5e3c784d39fe5949bb2096383a8e6ffec96f4f55ee1e340419bec923a525ff64"
+      },
+      {
+        "name": "OwnershipFacet",
+        "address": "0xe3607b63C06CF351C5e77Eef8F85994eed85FB16",
+        "txHash": "0x88f8b805546580886e61810bd88b7c687540808263d35b62d564763bcbfd73a9",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765464143995,
+        "verified": true,
+        "updated": false,
+        "contentHash": "1b008319c8f5990b6c8b9e79ccb8120d9e76ff4ff78d2e8e4ca6efc5f0292531"
+      }
+    ],
+    "network": "liskSepolia",
+    "chainId": 4202,
+    "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+    "deployedAt": 1765465770663
+  },
+  "baseSepolia": {
+    "diamond": "0xb899A968e785dD721dbc40e71e2FAEd7B2d84711",
+    "diamondInit": "0xaCbC3778082DA33b382FE5a0581dEBCD4C552385",
+    "diamondCutFacet": "0x34a15ca403360F2F7b3389e3A70Fb8958aB518e6",
+    "mockUSDC": "0xC88f9782CEC37b35E324a12B8CF1785E607b33Ea",
+    "facets": [
+      {
+        "name": "DiamondLoupeFacet",
+        "address": "0x048Cc025b826678485Aaaf5DbFE12f677CA339E9",
+        "txHash": "0x1d669696f962eba9f1c788ea4a93d4fa0b1ebc4ca7637d8c4b7fa6aafe574acd",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765467090127,
+        "verified": false,
+        "updated": true,
+        "contentHash": "0469d0425c73b8e79e4669698f1ff18d1338c2bb72a55d32b8b05a9e8d779454"
+      },
+      {
+        "name": "GovernanceFacet",
+        "address": "0x45538A53FA67cc3AC5DBE31b53eA37c26578034B",
+        "txHash": "0x2f3d9f1a3063b521e5278e1c7afee381daf29ab69f33be78fde924b3e9c8997d",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765467098818,
+        "verified": false,
+        "updated": true,
+        "contentHash": "39687417d17c39c31f432491e22905c1dbb77db83ba32cd2dab32d27291047de"
+      },
+      {
+        "name": "LiquidityPoolFacet",
+        "address": "0x0c06b474084e75249559Dc28A3f83B09bc626209",
+        "txHash": "0xa36137150f1c0a509bc617edb505d5ea1996da1ee97ec98b3d3e9a2e004d0db0",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765467104196,
+        "verified": false,
+        "updated": true,
+        "contentHash": "5e3c784d39fe5949bb2096383a8e6ffec96f4f55ee1e340419bec923a525ff64"
+      },
+      {
+        "name": "OwnershipFacet",
+        "address": "0xF7250C12cEEf0173E0005eDeE20C9B35c1a4b064",
+        "txHash": "0xd9c088bae1d06cb24e7b6462c0e54f71e9a145c6a407113d422ba069b9af5f5d",
+        "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+        "timestamp": 1765467108355,
+        "verified": false,
+        "updated": true,
+        "contentHash": "1b008319c8f5990b6c8b9e79ccb8120d9e76ff4ff78d2e8e4ca6efc5f0292531"
+      }
+    ],
+    "network": "baseSepolia",
+    "chainId": 84532,
+    "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
+    "deployedAt": 1765467201321
+  }
+}
