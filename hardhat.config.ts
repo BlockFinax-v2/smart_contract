@@ -5,8 +5,11 @@ dotenv.config();
 
 const BASE_SEPOLIA_RPC = process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org";
 const BASE_RPC = process.env.BASE_RPC || "https://mainnet.base.org";
+const LISK_SEPOLIA_RPC = process.env.LISK_SEPOLIA_RPC || "https://rpc.sepolia-api.lisk.com";
+const LISK_RPC = process.env.LISK_RPC || "https://rpc.api.lisk.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || "";
+const LISK_EXPLORER_KEY = process.env.LISK_EXPLORER_KEY || "";
 
 // Validate private key
 if (!PRIVATE_KEY) {
@@ -37,16 +40,33 @@ const config: HardhatUserConfig = {
       timeout: 60000,
       httpHeaders: {},
     },
-    // Keep Base mainnet config for future use
     base: {
       url: BASE_RPC,
       accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
       chainId: 8453,
       gasPrice: "auto"
+    },
+    liskSepolia: {
+      url: LISK_SEPOLIA_RPC,
+      accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
+      chainId: 4202,
+      gasPrice: "auto",
+      timeout: 60000,
+    },
+    lisk: {
+      url: LISK_RPC,
+      accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
+      chainId: 1135,
+      gasPrice: "auto"
     }
   },
   etherscan: {
-    apiKey: BASESCAN_API_KEY,
+    apiKey: {
+      baseSepolia: BASESCAN_API_KEY,
+      base: BASESCAN_API_KEY,
+      liskSepolia: LISK_EXPLORER_KEY,
+      lisk: LISK_EXPLORER_KEY
+    },
     customChains: [
       {
         network: "baseSepolia",
@@ -62,6 +82,22 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api.basescan.org/api",
           browserURL: "https://basescan.org"
+        }
+      },
+      {
+        network: "liskSepolia",
+        chainId: 4202,
+        urls: {
+          apiURL: "https://sepolia-blockscout.lisk.com/api",
+          browserURL: "https://sepolia-blockscout.lisk.com"
+        }
+      },
+      {
+        network: "lisk",
+        chainId: 1135,
+        urls: {
+          apiURL: "https://blockscout.lisk.com/api",
+          browserURL: "https://blockscout.lisk.com"
         }
       }
     ]

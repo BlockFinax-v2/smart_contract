@@ -25,13 +25,23 @@ contract LiquidityPoolFacet is ReentrancyGuard {
     error InvalidAPR();
     error InvalidLockDuration();
     error InvalidPenalty();
+    error InsufficientAllowance();
+    error InvalidDeadline();
+    error TransferFailed();
+    error FinanciersCannotEmergencyWithdraw();
+    error ExcessiveAmount();
+    error InvalidVotingPower();
 
     event Staked(
         address indexed staker,
         uint256 amount,
         uint256 votingPower,
-        uint256 currentApr
+        uint256 currentApr,
+        uint256 deadline,
+        bool isFinancier
     );
+    event FinancierStatusChanged(address indexed staker, bool isFinancier);
+    event CustomDeadlineSet(address indexed staker, uint256 deadline);
     event Unstaked(address indexed staker, uint256 amount, uint256 rewards);
     event RewardsDistributed(address indexed staker, uint256 amount);
     event RewardsClaimed(address indexed staker, uint256 amount);
@@ -62,39 +72,113 @@ contract LiquidityPoolFacet is ReentrancyGuard {
     uint256 private constant MIN_APR = 10; // 1% minimum APR
 
     modifier whenNotPaused() {
-        if (_paused) revert ContractPaused();
+        if (_isPaused()) revert ContractPaused();
         _;
     }
 
-    modifier onlyOwner() {
-        if (msg.sender != LibDiamond.contractOwner()) {
-            revert NotContractOwner();
-        }
-        _;
-    }
+    // Pause functions removed - handled by GovernanceFacet to avoid selector conflicts
+    // Use the diamond's GovernanceFacet.pause(), unpause(), paused() functions instead
 
-    function pause() external onlyOwner {
+    function _pause() internal {
         _paused = true;
         emit Paused(msg.sender);
     }
 
-    function unpause() external onlyOwner {
+    function _unpause() internal {
         _paused = false;
         emit Unpaused(msg.sender);
     }
 
-    function paused() external view returns (bool) {
+    function _isPaused() internal view returns (bool) {
         return _paused;
     }
 
     /**
-     * @notice Stake USDC tokens to become LP provider with enhanced rewards
+     * @notice Stake USDC tokens to become LP provider with custom deadline
      */
-    function stake(uint256 amount) external nonReentrant whenNotPaused {
+    function stake(
+        uint256 amount,
+        uint256 customDeadline
+    ) external nonReentrant whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Checks
+        if (amount == 0) revert ZeroAmount();
+        if (amount < s.minimumStake) revert BelowMinimumStake();
+        if (amount > 1e30) revert ExcessiveAmount(); // Reasonable upper bound
+
+        // Validate custom deadline
+        uint256 minDeadline = block.timestamp + s.minNormalStakerLockDuration;
+        if (customDeadline < minDeadline) {
+            customDeadline = minDeadline;
+        }
+        if (customDeadline > block.timestamp + 365 days)
+            revert InvalidDeadline(); // Max 1 year
+
+        IERC20 usdc = IERC20(s.usdcToken);
+        if (usdc.balanceOf(msg.sender) < amount) revert InsufficientBalance();
+        if (usdc.allowance(msg.sender, address(this)) < amount)
+            revert InsufficientAllowance();
+
+        // Effects - Update rewards before modifying stake
+        _updateRewards(msg.sender);
+
+        // Interactions (external calls)
+        usdc.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Update stake record
+        if (s.stakes[msg.sender].amount == 0) {
+            s.stakers.push(msg.sender);
+            s.totalLiquidityProviders++;
+        }
+
+        s.stakes[msg.sender].amount += amount;
+        s.stakes[msg.sender].timestamp = block.timestamp;
+        s.stakes[msg.sender].lastRewardTimestamp = block.timestamp;
+        s.stakes[msg.sender].deadline = customDeadline;
+        s.stakes[msg.sender].active = true;
+
+        // Update total staked and reward rate
+        s.totalStaked += amount;
+        _updateRewardRate();
+
+        // Calculate voting power
+        s.stakes[msg.sender].votingPower =
+            (s.stakes[msg.sender].amount * PRECISION) /
+            s.totalStaked;
+
+        // Recalculate all voting powers
+        _recalculateVotingPowers();
+
+        emit Staked(
+            msg.sender,
+            amount,
+            s.stakes[msg.sender].votingPower,
+            s.currentRewardRate,
+            customDeadline,
+            s.stakes[msg.sender].isFinancier
+        );
+    }
+
+    /**
+     * @notice Stake as financier with higher minimum and voting rights
+     */
+    function stakeAsFinancier(
+        uint256 amount,
+        uint256 customDeadline
+    ) external nonReentrant whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
         if (amount == 0) revert ZeroAmount();
-        if (amount < s.minimumStake) revert BelowMinimumStake();
+        if (amount < s.minimumFinancierStake) {
+            revert("Amount below minimum financier stake");
+        }
+
+        // Validate custom deadline for financiers
+        uint256 minDeadline = block.timestamp + s.minFinancierLockDuration;
+        if (customDeadline < minDeadline) {
+            customDeadline = minDeadline;
+        }
 
         IERC20 usdc = IERC20(s.usdcToken);
         if (usdc.balanceOf(msg.sender) < amount) revert InsufficientBalance();
@@ -114,7 +198,9 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         s.stakes[msg.sender].amount += amount;
         s.stakes[msg.sender].timestamp = block.timestamp;
         s.stakes[msg.sender].lastRewardTimestamp = block.timestamp;
+        s.stakes[msg.sender].deadline = customDeadline;
         s.stakes[msg.sender].active = true;
+        s.stakes[msg.sender].isFinancier = true; // Mark as financier
 
         // Update total staked and reward rate
         s.totalStaked += amount;
@@ -132,12 +218,15 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             msg.sender,
             amount,
             s.stakes[msg.sender].votingPower,
-            s.currentRewardRate
+            s.currentRewardRate,
+            customDeadline,
+            true
         );
+        emit FinancierStatusChanged(msg.sender, true);
     }
 
     /**
-     * @notice Unstake USDC tokens after lock period
+     * @notice Unstake USDC tokens after custom deadline
      */
     function unstake(uint256 amount) external nonReentrant whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
@@ -146,9 +235,7 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         if (amount == 0) revert ZeroAmount();
         if (amount > s.stakes[msg.sender].amount)
             revert InsufficientStakedAmount();
-        if (
-            block.timestamp < s.stakes[msg.sender].timestamp + s.minLockDuration
-        ) {
+        if (block.timestamp < s.stakes[msg.sender].deadline) {
             revert LockDurationNotMet();
         }
 
@@ -184,25 +271,37 @@ contract LiquidityPoolFacet is ReentrancyGuard {
     }
 
     /**
-     * @notice Emergency withdraw with penalty (ignores lock period)
+     * @notice Emergency withdraw with penalty (ignores lock period, not available for financiers)
      */
     function emergencyWithdraw() external nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.Stake storage userStake = s.stakes[msg.sender];
 
-        if (!s.stakes[msg.sender].active) revert NoActiveStake();
-        if (s.stakes[msg.sender].amount == 0) revert NothingToUnstake();
+        // Checks
+        if (!userStake.active) revert NoActiveStake();
+        if (userStake.amount == 0) revert NothingToUnstake();
 
-        uint256 amount = s.stakes[msg.sender].amount;
+        // Prevent financiers from using emergency withdrawal
+        if (userStake.amount >= s.minimumFinancierStake) {
+            revert FinanciersCannotEmergencyWithdraw();
+        }
+
+        IERC20 token = IERC20(s.usdcToken);
+        if (token.balanceOf(address(this)) < userStake.amount)
+            revert InsufficientBalance();
+
+        // Calculate amounts before effects
+        uint256 amount = userStake.amount;
         uint256 penalty = (amount * s.emergencyWithdrawPenalty) /
             PERCENTAGE_BASE;
         uint256 withdrawAmount = amount - penalty;
 
-        // Reset user state
-        s.stakes[msg.sender].amount = 0;
-        s.stakes[msg.sender].active = false;
-        s.stakes[msg.sender].votingPower = 0;
-        s.stakes[msg.sender].pendingRewards = 0;
-        s.stakes[msg.sender].rewardDebt = 0;
+        // Effects - Reset user state
+        userStake.amount = 0;
+        userStake.active = false;
+        userStake.votingPower = 0;
+        userStake.pendingRewards = 0;
+        userStake.rewardDebt = 0;
 
         s.totalStaked -= amount;
         s.totalLiquidityProviders--;
@@ -238,7 +337,65 @@ contract LiquidityPoolFacet is ReentrancyGuard {
     }
 
     /**
-     * @notice Get stake information
+     * @notice Apply to become a financier (must already have minimum stake)
+     */
+    function applyAsFinancier() external {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        require(s.stakes[msg.sender].active, "Must be active staker");
+        require(
+            s.stakes[msg.sender].amount >= s.minimumFinancierStake,
+            "Insufficient stake for financier status"
+        );
+        require(!s.stakes[msg.sender].isFinancier, "Already a financier");
+
+        // Update deadline to meet financier minimum
+        uint256 minFinancierDeadline = block.timestamp +
+            s.minFinancierLockDuration;
+        if (s.stakes[msg.sender].deadline < minFinancierDeadline) {
+            s.stakes[msg.sender].deadline = minFinancierDeadline;
+            emit CustomDeadlineSet(msg.sender, minFinancierDeadline);
+        }
+
+        s.stakes[msg.sender].isFinancier = true;
+        emit FinancierStatusChanged(msg.sender, true);
+    }
+
+    /**
+     * @notice Revoke financier status (cannot vote anymore)
+     */
+    function revokeFinancierStatus() external {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        require(s.stakes[msg.sender].isFinancier, "Not a financier");
+
+        s.stakes[msg.sender].isFinancier = false;
+        emit FinancierStatusChanged(msg.sender, false);
+    }
+
+    /**
+     * @notice Set custom deadline for existing stake
+     */
+    function setCustomDeadline(uint256 newDeadline) external {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        require(s.stakes[msg.sender].active, "Must be active staker");
+
+        uint256 minDeadline;
+        if (s.stakes[msg.sender].isFinancier) {
+            minDeadline = block.timestamp + s.minFinancierLockDuration;
+        } else {
+            minDeadline = block.timestamp + s.minNormalStakerLockDuration;
+        }
+
+        require(newDeadline >= minDeadline, "Deadline below minimum required");
+
+        s.stakes[msg.sender].deadline = newDeadline;
+        emit CustomDeadlineSet(msg.sender, newDeadline);
+    }
+
+    /**
+     * @notice Get stake information with financier status
      */
     function getStake(
         address staker
@@ -251,16 +408,17 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             uint256 votingPower,
             bool active,
             uint256 pendingRewards,
-            uint256 timeUntilUnlock
+            uint256 timeUntilUnlock,
+            uint256 deadline,
+            bool isFinancier
         )
     {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.Stake memory stakeData = s.stakes[staker];
 
-        uint256 unlockTime = block.timestamp >=
-            stakeData.timestamp + s.minLockDuration
+        uint256 unlockTime = block.timestamp >= stakeData.deadline
             ? 0
-            : stakeData.timestamp + s.minLockDuration - block.timestamp;
+            : stakeData.deadline - block.timestamp;
 
         return (
             stakeData.amount,
@@ -268,8 +426,52 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             stakeData.votingPower,
             stakeData.active,
             getPendingRewards(staker),
-            unlockTime
+            unlockTime,
+            stakeData.deadline,
+            stakeData.isFinancier
         );
+    }
+
+    /**
+     * @notice Check if address is eligible financier
+     */
+    function isEligibleFinancier(address staker) external view returns (bool) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return
+            s.stakes[staker].active &&
+            s.stakes[staker].isFinancier &&
+            s.stakes[staker].amount >= s.minimumFinancierStake;
+    }
+
+    /**
+     * @notice Get all financiers
+     */
+    function getFinanciers() external view returns (address[] memory) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Count financiers first
+        uint256 financierCount = 0;
+        for (uint256 i = 0; i < s.stakers.length; i++) {
+            if (
+                s.stakes[s.stakers[i]].active &&
+                s.stakes[s.stakers[i]].isFinancier
+            ) {
+                financierCount++;
+            }
+        }
+
+        // Create array and populate
+        address[] memory financiers = new address[](financierCount);
+        uint256 index = 0;
+        for (uint256 i = 0; i < s.stakers.length; i++) {
+            address staker = s.stakers[i];
+            if (s.stakes[staker].active && s.stakes[staker].isFinancier) {
+                financiers[index] = staker;
+                index++;
+            }
+        }
+
+        return financiers;
     }
 
     /**
@@ -340,7 +542,10 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             uint256 minLockDuration,
             uint256 aprReductionPerThousand,
             uint256 emergencyWithdrawPenalty,
-            uint256 minimumStake
+            uint256 minimumStake,
+            uint256 minimumFinancierStake,
+            uint256 minFinancierLockDuration,
+            uint256 minNormalStakerLockDuration
         )
     {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
@@ -350,7 +555,10 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             s.minLockDuration,
             s.aprReductionPerThousand,
             s.emergencyWithdrawPenalty,
-            s.minimumStake
+            s.minimumStake,
+            s.minimumFinancierStake,
+            s.minFinancierLockDuration,
+            s.minNormalStakerLockDuration
         );
     }
 
@@ -365,132 +573,6 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         IERC20(s.usdcToken).safeTransfer(staker, amount);
 
         emit RewardsDistributed(staker, amount);
-    }
-
-    /**
-     * @notice Set USDC token address (owner only)
-     */
-    function setUsdcToken(address _usdcToken) external {
-        LibDiamond.enforceIsContractOwner();
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        s.usdcToken = _usdcToken;
-    }
-
-    /**
-     * @notice Set minimum stake amount (owner only)
-     */
-    function setMinimumStake(uint256 _minimumStake) external {
-        LibDiamond.enforceIsContractOwner();
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        s.minimumStake = _minimumStake;
-    }
-
-    /**
-     * @notice Initialize staking configuration (owner only)
-     */
-    function initializeStaking(
-        uint256 _initialApr,
-        uint256 _minLockDuration,
-        uint256 _aprReductionPerThousand,
-        uint256 _emergencyWithdrawPenalty
-    ) external {
-        LibDiamond.enforceIsContractOwner();
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-
-        if (_initialApr == 0) revert InvalidAPR();
-        if (_minLockDuration == 0) revert InvalidLockDuration();
-        if (_emergencyWithdrawPenalty > PERCENTAGE_BASE)
-            revert InvalidPenalty();
-
-        s.initialApr = _initialApr;
-        s.currentRewardRate = _initialApr;
-        s.minLockDuration = _minLockDuration;
-        s.aprReductionPerThousand = _aprReductionPerThousand;
-        s.emergencyWithdrawPenalty = _emergencyWithdrawPenalty;
-    }
-
-    /**
-     * @notice Complete initialization with token and minimum stake
-     */
-    function initializeComplete(
-        address _usdcToken,
-        uint256 _minimumStake,
-        uint256 _initialApr,
-        uint256 _minLockDuration,
-        uint256 _aprReductionPerThousand,
-        uint256 _emergencyWithdrawPenalty
-    ) external {
-        LibDiamond.enforceIsContractOwner();
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-
-        if (_initialApr == 0) revert InvalidAPR();
-        if (_minLockDuration == 0) revert InvalidLockDuration();
-        if (_emergencyWithdrawPenalty > PERCENTAGE_BASE)
-            revert InvalidPenalty();
-        if (_usdcToken == address(0)) revert ZeroAmount();
-        if (_minimumStake == 0) revert ZeroAmount();
-
-        s.usdcToken = _usdcToken;
-        s.minimumStake = _minimumStake;
-        s.initialApr = _initialApr;
-        s.currentRewardRate = _initialApr;
-        s.minLockDuration = _minLockDuration;
-        s.aprReductionPerThousand = _aprReductionPerThousand;
-        s.emergencyWithdrawPenalty = _emergencyWithdrawPenalty;
-    }
-
-    /**
-     * @notice Update staking parameters (owner only)
-     */
-    function updateStakingConfig(
-        uint256 _initialApr,
-        uint256 _minLockDuration,
-        uint256 _aprReductionPerThousand,
-        uint256 _emergencyWithdrawPenalty
-    ) external {
-        LibDiamond.enforceIsContractOwner();
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-
-        if (_initialApr > 0 && _initialApr != s.initialApr) {
-            uint256 oldValue = s.initialApr;
-            s.initialApr = _initialApr;
-            emit StakingConfigUpdated("initialApr", oldValue, _initialApr);
-        }
-
-        if (_minLockDuration > 0 && _minLockDuration != s.minLockDuration) {
-            uint256 oldValue = s.minLockDuration;
-            s.minLockDuration = _minLockDuration;
-            emit StakingConfigUpdated(
-                "minLockDuration",
-                oldValue,
-                _minLockDuration
-            );
-        }
-
-        if (_aprReductionPerThousand != s.aprReductionPerThousand) {
-            uint256 oldValue = s.aprReductionPerThousand;
-            s.aprReductionPerThousand = _aprReductionPerThousand;
-            emit StakingConfigUpdated(
-                "aprReductionPerThousand",
-                oldValue,
-                _aprReductionPerThousand
-            );
-        }
-
-        if (
-            _emergencyWithdrawPenalty <= PERCENTAGE_BASE &&
-            _emergencyWithdrawPenalty != s.emergencyWithdrawPenalty
-        ) {
-            uint256 oldValue = s.emergencyWithdrawPenalty;
-            s.emergencyWithdrawPenalty = _emergencyWithdrawPenalty;
-            emit StakingConfigUpdated(
-                "emergencyWithdrawPenalty",
-                oldValue,
-                _emergencyWithdrawPenalty
-            );
-        }
-
-        _updateRewardRate();
     }
 
     /**
@@ -557,9 +639,14 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         for (uint256 i = 0; i < s.stakers.length; i++) {
             address staker = s.stakers[i];
             if (s.stakes[staker].active && s.stakes[staker].amount > 0) {
-                s.stakes[staker].votingPower =
-                    (s.stakes[staker].amount * PRECISION) /
-                    s.totalStaked;
+                // Prevent overflow in voting power calculation
+                if (s.stakes[staker].amount > type(uint256).max / PRECISION) {
+                    s.stakes[staker].votingPower = PRECISION; // Cap at 100%
+                } else {
+                    s.stakes[staker].votingPower =
+                        (s.stakes[staker].amount * PRECISION) /
+                        s.totalStaked;
+                }
             }
         }
     }

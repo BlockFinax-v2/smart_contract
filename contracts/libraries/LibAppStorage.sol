@@ -12,6 +12,32 @@ library LibAppStorage {
         uint256 lastRewardTimestamp;
         uint256 pendingRewards;
         uint256 rewardDebt;
+        uint256 deadline; // Custom deadline set by staker
+        bool isFinancier; // Whether user applied as financier
+        uint256 revocationRequestTime; // When revocation was requested
+        bool revocationRequested; // Whether revocation is pending
+    }
+
+    struct Proposal {
+        string proposalId;
+        address proposer;
+        string category; // Treasury, Investment, Guarantee, etc.
+        string title;
+        string description;
+        uint256 votesFor;
+        uint256 votesAgainst;
+        uint256 createdAt;
+        uint256 votingDeadline;
+        ProposalStatus status;
+        bool executed;
+    }
+
+    enum ProposalStatus {
+        Active,
+        Passed,
+        Failed,
+        Executed,
+        Cancelled
     }
 
     struct TradeFinanceRequest {
@@ -144,7 +170,19 @@ library LibAppStorage {
         uint256 minLockDuration;
         uint256 aprReductionPerThousand;
         uint256 emergencyWithdrawPenalty;
-        // Governance Storage
+        // Financier Configuration
+        uint256 minimumFinancierStake;
+        uint256 minFinancierLockDuration;
+        uint256 minNormalStakerLockDuration;
+        // DAO Governance Storage
+        mapping(string => Proposal) proposals;
+        mapping(string => mapping(address => bool)) hasVotedOnProposal;
+        mapping(string => mapping(address => bool)) voterSupport; // track vote direction
+        string[] proposalIds;
+        uint256 totalProposals;
+        uint256 votingDuration; // Default voting period
+        uint256 proposalThreshold; // Min stake to create proposal
+        // Legacy Governance Storage (keep for backward compatibility)
         mapping(string => TradeFinanceRequest) requests;
         mapping(string => mapping(address => bool)) hasVoted;
         string[] requestIds;
@@ -167,6 +205,10 @@ library LibAppStorage {
         mapping(uint256 => bytes32[]) escrowDocuments; // escrow -> linked documents
         mapping(uint256 => bytes32[]) invoiceDocuments; // invoice -> linked documents
         uint256 totalDocuments;
+        // DAO Multi-sig execution tracking
+        mapping(string => mapping(address => bool)) proposalExecutionVotes; // proposalId -> financier -> voted
+        mapping(string => uint256) proposalExecutionApprovals; // proposalId -> approval count
+        uint256 revocationPeriod; // Time required before revocation (default 30 days)
     }
 
     function appStorage() internal pure returns (AppStorage storage s) {
