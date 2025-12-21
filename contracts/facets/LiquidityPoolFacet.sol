@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../libraries/LibAppStorage.sol";
@@ -560,6 +561,487 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             s.minFinancierLockDuration,
             s.minNormalStakerLockDuration
         );
+    }
+
+    // ========================================
+    // MULTI-TOKEN STAKING FUNCTIONS
+    // ========================================
+
+    /**
+     * @notice Stake any supported stablecoin (NORMAL STAKER)
+     */
+    function stakeToken(
+        address tokenAddress,
+        uint256 amount,
+        uint256 customDeadline,
+        uint256 usdEquivalent
+    ) external nonReentrant whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Validations
+        require(s.isStakingTokenSupported[tokenAddress], "Token not supported");
+        if (amount == 0) revert ZeroAmount();
+        if (usdEquivalent < s.minimumStake) revert BelowMinimumStake();
+        if (amount > 1e30) revert ExcessiveAmount();
+
+        // Validate custom deadline for normal stakers
+        uint256 minDeadline = block.timestamp + s.minNormalStakerLockDuration;
+        if (customDeadline < minDeadline) {
+            customDeadline = minDeadline;
+        }
+        if (customDeadline > block.timestamp + 365 days)
+            revert InvalidDeadline();
+
+        IERC20 token = IERC20(tokenAddress);
+        if (token.balanceOf(msg.sender) < amount) revert InsufficientBalance();
+        if (token.allowance(msg.sender, address(this)) < amount)
+            revert InsufficientAllowance();
+
+        // Update rewards for this specific token stake
+        _updateTokenRewards(msg.sender, tokenAddress);
+
+        // Transfer tokens
+        token.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Track user if first stake
+        if (s.stakesPerToken[msg.sender][tokenAddress].amount == 0) {
+            if (!_isExistingStaker(msg.sender)) {
+                s.stakers.push(msg.sender);
+                s.totalLiquidityProviders++;
+            }
+        }
+
+        // Update stake record for this token
+        s.stakesPerToken[msg.sender][tokenAddress].amount += amount;
+        s.stakesPerToken[msg.sender][tokenAddress].timestamp = block.timestamp;
+        s.stakesPerToken[msg.sender][tokenAddress].lastRewardTimestamp = block
+            .timestamp;
+        s.stakesPerToken[msg.sender][tokenAddress].deadline = customDeadline;
+        s.stakesPerToken[msg.sender][tokenAddress].stakingToken = tokenAddress;
+        s
+            .stakesPerToken[msg.sender][tokenAddress]
+            .usdEquivalent = usdEquivalent;
+        s.stakesPerToken[msg.sender][tokenAddress].active = true;
+        s.stakesPerToken[msg.sender][tokenAddress].isFinancier = false;
+
+        // Update totals
+        s.totalStakedPerToken[tokenAddress] += amount;
+        s.totalStaked += usdEquivalent;
+
+        // Update reward rate and recalculate voting powers
+        _updateRewardRate();
+        _recalculateAllVotingPowers();
+
+        emit Staked(
+            msg.sender,
+            amount,
+            s.stakesPerToken[msg.sender][tokenAddress].votingPower,
+            s.currentRewardRate,
+            customDeadline,
+            false
+        );
+    }
+
+    /**
+     * @notice Stake any supported stablecoin as FINANCIER
+     */
+    function stakeTokenAsFinancier(
+        address tokenAddress,
+        uint256 amount,
+        uint256 customDeadline,
+        uint256 usdEquivalent
+    ) external nonReentrant whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Validations
+        require(s.isStakingTokenSupported[tokenAddress], "Token not supported");
+        if (amount == 0) revert ZeroAmount();
+        if (usdEquivalent < s.minimumFinancierStake) {
+            revert("USD equivalent below minimum financier stake");
+        }
+        if (amount > 1e30) revert ExcessiveAmount();
+
+        // Validate custom deadline for financiers
+        uint256 minDeadline = block.timestamp + s.minFinancierLockDuration;
+        if (customDeadline < minDeadline) {
+            customDeadline = minDeadline;
+        }
+        if (customDeadline > block.timestamp + 365 days)
+            revert InvalidDeadline();
+
+        IERC20 token = IERC20(tokenAddress);
+        if (token.balanceOf(msg.sender) < amount) revert InsufficientBalance();
+        if (token.allowance(msg.sender, address(this)) < amount)
+            revert InsufficientAllowance();
+
+        // Update rewards for this specific token stake
+        _updateTokenRewards(msg.sender, tokenAddress);
+
+        // Transfer tokens
+        token.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Track user if first stake
+        if (s.stakesPerToken[msg.sender][tokenAddress].amount == 0) {
+            if (!_isExistingStaker(msg.sender)) {
+                s.stakers.push(msg.sender);
+                s.totalLiquidityProviders++;
+            }
+        }
+
+        // Update stake record for this token as FINANCIER
+        s.stakesPerToken[msg.sender][tokenAddress].amount += amount;
+        s.stakesPerToken[msg.sender][tokenAddress].timestamp = block.timestamp;
+        s.stakesPerToken[msg.sender][tokenAddress].lastRewardTimestamp = block
+            .timestamp;
+        s.stakesPerToken[msg.sender][tokenAddress].deadline = customDeadline;
+        s.stakesPerToken[msg.sender][tokenAddress].stakingToken = tokenAddress;
+        s
+            .stakesPerToken[msg.sender][tokenAddress]
+            .usdEquivalent = usdEquivalent;
+        s.stakesPerToken[msg.sender][tokenAddress].active = true;
+        s.stakesPerToken[msg.sender][tokenAddress].isFinancier = true;
+
+        // Update totals
+        s.totalStakedPerToken[tokenAddress] += amount;
+        s.totalStaked += usdEquivalent;
+
+        // Update reward rate and recalculate voting powers
+        _updateRewardRate();
+        _recalculateAllVotingPowers();
+
+        emit Staked(
+            msg.sender,
+            amount,
+            s.stakesPerToken[msg.sender][tokenAddress].votingPower,
+            s.currentRewardRate,
+            customDeadline,
+            true
+        );
+        emit FinancierStatusChanged(msg.sender, true);
+    }
+
+    /**
+     * @notice Unstake a specific token
+     */
+    function unstakeToken(
+        address tokenAddress,
+        uint256 amount
+    ) external nonReentrant whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.Stake storage userStake = s.stakesPerToken[msg.sender][
+            tokenAddress
+        ];
+
+        if (!userStake.active) revert NoActiveStake();
+        if (amount == 0) revert ZeroAmount();
+        if (amount > userStake.amount) revert InsufficientStakedAmount();
+        if (block.timestamp < userStake.deadline) revert LockDurationNotMet();
+
+        // Update rewards before withdrawal
+        _updateTokenRewards(msg.sender, tokenAddress);
+
+        uint256 rewards = userStake.pendingRewards;
+        uint256 usdToDeduct = (userStake.usdEquivalent * amount) /
+            userStake.amount;
+
+        // Update stake state
+        userStake.amount -= amount;
+        userStake.usdEquivalent -= usdToDeduct;
+        s.totalStakedPerToken[tokenAddress] -= amount;
+        s.totalStaked -= usdToDeduct;
+
+        // If fully unstaking this token, mark as inactive
+        if (userStake.amount == 0) {
+            userStake.active = false;
+            userStake.votingPower = 0;
+
+            // Check if user has any other active stakes
+            if (!_hasAnyActiveStake(msg.sender)) {
+                s.totalLiquidityProviders--;
+            }
+        }
+
+        // Update reward rate and voting powers
+        _updateRewardRate();
+        _recalculateAllVotingPowers();
+
+        // Convert rewards from 18 decimals to token decimals
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
+        uint256 rewardsInTokenDecimals = rewards / (10 ** (18 - tokenDecimals));
+
+        // Transfer principal + rewards
+        uint256 totalTransfer = amount + rewardsInTokenDecimals;
+        if (rewards > 0) {
+            userStake.pendingRewards = 0;
+        }
+
+        IERC20(tokenAddress).safeTransfer(msg.sender, totalTransfer);
+
+        emit Unstaked(msg.sender, amount, rewardsInTokenDecimals);
+    }
+
+    /**
+     * @notice Get stake for specific token
+     */
+    function getStakeForToken(
+        address staker,
+        address tokenAddress
+    )
+        external
+        view
+        returns (
+            uint256 amount,
+            uint256 timestamp,
+            bool active,
+            uint256 usdEquivalent,
+            uint256 deadline,
+            bool isFinancier,
+            uint256 pendingRewards,
+            uint256 votingPower
+        )
+    {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.Stake memory stakeData = s.stakesPerToken[staker][
+            tokenAddress
+        ];
+
+        uint256 rewards = _calculateTokenRewards(staker, tokenAddress);
+
+        return (
+            stakeData.amount,
+            stakeData.timestamp,
+            stakeData.active,
+            stakeData.usdEquivalent,
+            stakeData.deadline,
+            stakeData.isFinancier,
+            rewards,
+            stakeData.votingPower
+        );
+    }
+
+    /**
+     * @notice Get all stakes for user across all tokens
+     */
+    function getAllStakesForUser(
+        address staker
+    )
+        external
+        view
+        returns (
+            address[] memory tokens,
+            uint256[] memory amounts,
+            uint256[] memory usdEquivalents,
+            bool[] memory isFinancierFlags,
+            uint256[] memory deadlines,
+            uint256[] memory pendingRewards,
+            uint256 totalUsdValue
+        )
+    {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        uint256 tokenCount = s.supportedStakingTokens.length;
+        tokens = new address[](tokenCount);
+        amounts = new uint256[](tokenCount);
+        usdEquivalents = new uint256[](tokenCount);
+        isFinancierFlags = new bool[](tokenCount);
+        deadlines = new uint256[](tokenCount);
+        pendingRewards = new uint256[](tokenCount);
+        totalUsdValue = 0;
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            address token = s.supportedStakingTokens[i];
+            LibAppStorage.Stake memory stakeData = s.stakesPerToken[staker][
+                token
+            ];
+
+            tokens[i] = token;
+            amounts[i] = stakeData.amount;
+            usdEquivalents[i] = stakeData.usdEquivalent;
+            isFinancierFlags[i] = stakeData.isFinancier;
+            deadlines[i] = stakeData.deadline;
+            pendingRewards[i] = _calculateTokenRewards(staker, token);
+
+            if (stakeData.active) {
+                totalUsdValue += stakeData.usdEquivalent;
+            }
+        }
+    }
+
+    /**
+     * @notice Claim rewards for a specific token
+     */
+    function claimTokenRewards(
+        address tokenAddress
+    ) external nonReentrant whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.Stake storage userStake = s.stakesPerToken[msg.sender][
+            tokenAddress
+        ];
+
+        if (!userStake.active) revert NoActiveStake();
+
+        _updateTokenRewards(msg.sender, tokenAddress);
+        uint256 rewards = userStake.pendingRewards;
+        if (rewards == 0) revert NoRewardsToCllaim();
+
+        userStake.pendingRewards = 0;
+        userStake.rewardDebt = 0;
+
+        // Convert rewards from 18 decimals to token decimals
+        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
+        uint256 rewardsInTokenDecimals = rewards / (10 ** (18 - tokenDecimals));
+
+        IERC20(tokenAddress).safeTransfer(msg.sender, rewardsInTokenDecimals);
+
+        emit RewardsClaimed(msg.sender, rewardsInTokenDecimals);
+    }
+
+    // ========================================
+    // INTERNAL HELPER FUNCTIONS
+    // ========================================
+
+    /**
+     * @notice Update rewards for a specific token stake
+     */
+    function _updateTokenRewards(
+        address staker,
+        address tokenAddress
+    ) internal {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.Stake storage user = s.stakesPerToken[staker][
+            tokenAddress
+        ];
+
+        if (user.amount == 0 || !user.active) {
+            return;
+        }
+
+        uint256 timeElapsed = block.timestamp - user.lastRewardTimestamp;
+
+        if (timeElapsed > 0 && s.currentRewardRate > 0) {
+            uint256 annualRate = (s.currentRewardRate * PRECISION) /
+                PERCENTAGE_BASE;
+            uint256 rewardPerSecond = (user.usdEquivalent * annualRate) /
+                (SECONDS_PER_YEAR * PRECISION);
+            uint256 newRewards = rewardPerSecond * timeElapsed;
+
+            user.pendingRewards += newRewards;
+            user.lastRewardTimestamp = block.timestamp;
+        }
+    }
+
+    /**
+     * @notice Calculate pending rewards for specific token
+     */
+    function _calculateTokenRewards(
+        address staker,
+        address tokenAddress
+    ) internal view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.Stake storage user = s.stakesPerToken[staker][
+            tokenAddress
+        ];
+
+        if (user.amount == 0 || !user.active) {
+            return user.pendingRewards;
+        }
+
+        uint256 timeElapsed = block.timestamp - user.lastRewardTimestamp;
+
+        if (timeElapsed > 0 && s.currentRewardRate > 0) {
+            uint256 annualRate = (s.currentRewardRate * PRECISION) /
+                PERCENTAGE_BASE;
+            uint256 rewardPerSecond = (user.usdEquivalent * annualRate) /
+                (SECONDS_PER_YEAR * PRECISION);
+            uint256 newRewards = rewardPerSecond * timeElapsed;
+
+            return user.pendingRewards + newRewards;
+        }
+
+        return user.pendingRewards;
+    }
+
+    /**
+     * @notice Check if user is already in stakers array
+     */
+    function _isExistingStaker(address staker) internal view returns (bool) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        for (uint256 i = 0; i < s.stakers.length; i++) {
+            if (s.stakers[i] == staker) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @notice Check if user has any active stakes across all tokens
+     */
+    function _hasAnyActiveStake(address staker) internal view returns (bool) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Check legacy stake
+        if (s.stakes[staker].active && s.stakes[staker].amount > 0) {
+            return true;
+        }
+
+        // Check multi-token stakes
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            if (
+                s.stakesPerToken[staker][s.supportedStakingTokens[i]].active &&
+                s.stakesPerToken[staker][s.supportedStakingTokens[i]].amount > 0
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @notice Recalculate voting powers for all stakers across all tokens
+     */
+    function _recalculateAllVotingPowers() internal {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        if (s.totalStaked == 0) return;
+
+        for (uint256 i = 0; i < s.stakers.length; i++) {
+            address staker = s.stakers[i];
+            uint256 totalUserUsd = 0;
+
+            // Sum USD value across all tokens
+            for (uint256 j = 0; j < s.supportedStakingTokens.length; j++) {
+                address token = s.supportedStakingTokens[j];
+                if (s.stakesPerToken[staker][token].active) {
+                    totalUserUsd += s
+                        .stakesPerToken[staker][token]
+                        .usdEquivalent;
+
+                    // Update voting power for each token stake
+                    if (totalUserUsd > type(uint256).max / PRECISION) {
+                        s.stakesPerToken[staker][token].votingPower = PRECISION;
+                    } else {
+                        s.stakesPerToken[staker][token].votingPower =
+                            (s.stakesPerToken[staker][token].usdEquivalent *
+                                PRECISION) /
+                            s.totalStaked;
+                    }
+                }
+            }
+
+            // Also update legacy stake if active
+            if (s.stakes[staker].active && s.stakes[staker].amount > 0) {
+                totalUserUsd += s.stakes[staker].amount;
+                if (totalUserUsd > type(uint256).max / PRECISION) {
+                    s.stakes[staker].votingPower = PRECISION;
+                } else {
+                    s.stakes[staker].votingPower =
+                        (s.stakes[staker].amount * PRECISION) /
+                        s.totalStaked;
+                }
+            }
+        }
     }
 
     /**

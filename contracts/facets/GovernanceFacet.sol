@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.28;
 
 import "../libraries/LibAppStorage.sol";
 import "../libraries/LibDiamond.sol";
@@ -828,5 +828,92 @@ contract GovernanceFacet is ReentrancyGuard {
             s.approvalThreshold,
             s.revocationPeriod
         );
+    }
+
+    // ========================================
+    // TOKEN MANAGEMENT (ADMIN FUNCTIONS)
+    // ========================================
+
+    event StakingTokenAdded(address indexed tokenAddress);
+    event StakingTokenRemoved(address indexed tokenAddress);
+
+    /**
+     * @notice Add a new supported staking token (OWNER ONLY)
+     */
+    function addSupportedStakingToken(address tokenAddress) external {
+        LibDiamond.enforceIsContractOwner();
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        if (tokenAddress == address(0)) revert ZeroAddress();
+        require(
+            !s.isStakingTokenSupported[tokenAddress],
+            "Token already supported"
+        );
+
+        s.supportedStakingTokens.push(tokenAddress);
+        s.isStakingTokenSupported[tokenAddress] = true;
+
+        emit StakingTokenAdded(tokenAddress);
+    }
+
+    /**
+     * @notice Remove a supported staking token (OWNER ONLY)
+     */
+    function removeSupportedStakingToken(address tokenAddress) external {
+        LibDiamond.enforceIsContractOwner();
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        require(s.isStakingTokenSupported[tokenAddress], "Token not supported");
+        require(
+            s.totalStakedPerToken[tokenAddress] == 0,
+            "Token has active stakes"
+        );
+
+        s.isStakingTokenSupported[tokenAddress] = false;
+
+        // Remove from array
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            if (s.supportedStakingTokens[i] == tokenAddress) {
+                s.supportedStakingTokens[i] = s.supportedStakingTokens[
+                    s.supportedStakingTokens.length - 1
+                ];
+                s.supportedStakingTokens.pop();
+                break;
+            }
+        }
+
+        emit StakingTokenRemoved(tokenAddress);
+    }
+
+    /**
+     * @notice Get all supported staking tokens
+     */
+    function getSupportedStakingTokens()
+        external
+        view
+        returns (address[] memory)
+    {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.supportedStakingTokens;
+    }
+
+    /**
+     * @notice Check if a token is supported for staking
+     */
+    function isTokenSupported(
+        address tokenAddress
+    ) external view returns (bool) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.isStakingTokenSupported[tokenAddress];
+    }
+
+    /**
+     * @notice Get total staked amount for a specific token
+     */
+    function getTotalStakedForToken(
+        address tokenAddress
+    ) external view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.totalStakedPerToken[tokenAddress];
     }
 }

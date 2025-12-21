@@ -9,10 +9,12 @@ library LibAppStorage {
         uint256 timestamp;
         uint256 votingPower;
         bool active;
+        address stakingToken; // Token being staked
+        uint256 usdEquivalent; // USD value at stake time
+        uint256 deadline; // Custom deadline set by staker
         uint256 lastRewardTimestamp;
         uint256 pendingRewards;
         uint256 rewardDebt;
-        uint256 deadline; // Custom deadline set by staker
         bool isFinancier; // Whether user applied as financier
         uint256 revocationRequestTime; // When revocation was requested
         bool revocationRequested; // Whether revocation is pending
@@ -159,6 +161,10 @@ library LibAppStorage {
     struct AppStorage {
         // Liquidity Pool Storage
         address usdcToken;
+        address[] supportedStakingTokens;
+        mapping(address => bool) isStakingTokenSupported;
+        mapping(address => uint256) totalStakedPerToken;
+        mapping(address => mapping(address => Stake)) stakesPerToken;
         mapping(address => Stake) stakes;
         address[] stakers;
         uint256 totalStaked;

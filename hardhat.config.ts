@@ -10,6 +10,7 @@ const LISK_RPC = process.env.LISK_RPC || "https://rpc.api.lisk.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || "";
 const LISK_EXPLORER_KEY = process.env.LISK_EXPLORER_KEY || "";
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "TFTQ3DZ5V9B13KWJK13Q91NSYHE3M8JGWN";
 
 // Validate private key
 if (!PRIVATE_KEY) {
@@ -62,8 +63,8 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
-      baseSepolia: BASESCAN_API_KEY,
-      base: BASESCAN_API_KEY,
+      baseSepolia: "abc", // Blockscout doesn't require API key
+      base: ETHERSCAN_API_KEY,
       liskSepolia: LISK_EXPLORER_KEY,
       lisk: LISK_EXPLORER_KEY
     },
@@ -72,15 +73,15 @@ const config: HardhatUserConfig = {
         network: "baseSepolia",
         chainId: 84532,
         urls: {
-          apiURL: "https://api-sepolia.basescan.org/api",
-          browserURL: "https://sepolia.basescan.org"
+          apiURL: "https://base-sepolia.blockscout.com/api",
+          browserURL: "https://base-sepolia.blockscout.com"
         }
       },
       {
         network: "base",
         chainId: 8453,
         urls: {
-          apiURL: "https://api.basescan.org/api",
+          apiURL: "https://api.etherscan.io/v2/api?chainid=8453",
           browserURL: "https://basescan.org"
         }
       },

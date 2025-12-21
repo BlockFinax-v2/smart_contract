@@ -1,55 +1,55 @@
 {
   "liskSepolia": {
-    "diamond": "0xe1A27Ee53D0E90F024965E6826e0BCA28946747A",
-    "diamondInit": "0x96a6e5A74c6EDbBfB0e32C2A0521cF2023d6d4d0",
-    "diamondCutFacet": "0x75b518110D92d46D2f30902C82Eef5F4a976f562",
-    "mockUSDC": "0x193F23a8982ea4a91558a0d5e8D13508f722AAD5",
+    "diamond": "0xE133CD2eE4d835AC202942Baff2B1D6d47862d34",
+    "diamondInit": "0xBFd32D4A19152fD137e98CEfA6a40C409bcB871E",
+    "diamondCutFacet": "0xE2e99706D46937869EC329E6B85a1E18c0FaC8eE",
+    "mockUSDC": "0xE7c962b20f397473Df0610403c5E0c3f2b298e59",
     "facets": [
       {
         "name": "DiamondLoupeFacet",
-        "address": "0x29A5AFd7d081c5A38C23699C9b5c6a368624dcf0",
-        "txHash": "0xc7aa34d171e1962052b8117d09e20d7093350cddd339302c55d43b35e2a9027d",
+        "address": "0x0c3677736296c42A5151FeD983fcE68AC84e6B8A",
+        "txHash": "0x9eb4faaea81ab63928d93d658d57f6e00d020ba5544e5be9e8735813b259dfd4",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1765462137920,
+        "timestamp": 1766158318854,
         "verified": true,
         "updated": false,
-        "contentHash": "0469d0425c73b8e79e4669698f1ff18d1338c2bb72a55d32b8b05a9e8d779454"
+        "contentHash": "e63b19ed83d2443ecd23b32ad76d4d90594e4863c265e43b62bb06274c49ce87"
       },
       {
         "name": "GovernanceFacet",
-        "address": "0x305a7a5A18d68142740B9847d2AC7B541Cd4d3a9",
-        "txHash": "0x66de8a7e64287508edeb45b0c11a4726cfe040a43eec8b449a031a6a0fba3b15",
+        "address": "0xaCEC6F19fD340e02394aA6b4F5FF7d59097074a2",
+        "txHash": "0x3ef8a713f0ba6eb984335c0979fb37258ad56b6d38bac0ab083872644f819260",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1765462163980,
+        "timestamp": 1766198065977,
         "verified": true,
         "updated": false,
-        "contentHash": "39687417d17c39c31f432491e22905c1dbb77db83ba32cd2dab32d27291047de"
+        "contentHash": "2fcabc3e092a74a360dbbb7c30c08d223bce25604a789bb0aec59861a4a763fa"
       },
       {
         "name": "LiquidityPoolFacet",
-        "address": "0x8f7AcDA0316Ad4f8511D01fD690FfBF7157C9dd9",
-        "txHash": "0x8370495ad301c92dfdab8178a711405ab7a39808e8b14d4cc87c48e8c6baf8fe",
+        "address": "0x74d29082faD45f67c6ECdF2f152c079c1d2093EB",
+        "txHash": "0xb4d0783d0a14e67c320f8c465abeca0d18fc407b79d03078cc302e5dad90257b",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1765462175490,
+        "timestamp": 1766198074190,
         "verified": true,
         "updated": false,
-        "contentHash": "5e3c784d39fe5949bb2096383a8e6ffec96f4f55ee1e340419bec923a525ff64"
+        "contentHash": "1577bdb95ce11c43344ebd128affc4f22484f20d83928739a5ab5aeced33520a"
       },
       {
         "name": "OwnershipFacet",
-        "address": "0xe3607b63C06CF351C5e77Eef8F85994eed85FB16",
-        "txHash": "0x88f8b805546580886e61810bd88b7c687540808263d35b62d564763bcbfd73a9",
+        "address": "0xF5eb95a1488958feA4243ff7b9415A9aA863Fc3E",
+        "txHash": "0xa98e42ec401dec246c9432bb9eb856a0a9e952605907c2b87fa01f5a87574dff",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1765464143995,
+        "timestamp": 1766158349160,
         "verified": true,
         "updated": false,
-        "contentHash": "1b008319c8f5990b6c8b9e79ccb8120d9e76ff4ff78d2e8e4ca6efc5f0292531"
+        "contentHash": "704e9c646d0666eb8237b6f31952f0be4171410625828e8ae3c9065cf13b55b4"
       }
     ],
     "network": "liskSepolia",
     "chainId": 4202,
     "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-    "deployedAt": 1765465770663
+    "deployedAt": 1766198122782
   },
   "baseSepolia": {
     "diamond": "0xb899A968e785dD721dbc40e71e2FAEd7B2d84711",
@@ -64,28 +64,28 @@
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
         "timestamp": 1765467090127,
         "verified": false,
-        "updated": true,
+        "updated": false,
         "contentHash": "0469d0425c73b8e79e4669698f1ff18d1338c2bb72a55d32b8b05a9e8d779454"
       },
       {
         "name": "GovernanceFacet",
-        "address": "0x45538A53FA67cc3AC5DBE31b53eA37c26578034B",
-        "txHash": "0x2f3d9f1a3063b521e5278e1c7afee381daf29ab69f33be78fde924b3e9c8997d",
+        "address": "0x85c242c8EA73B35753a91971482Bd8cc5AB8e165",
+        "txHash": "0x24c8a2b2fd76da87888ce196de27f2f2c5aeb3c0603b5d28b059119e8c66c5fa",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1765467098818,
+        "timestamp": 1766201668689,
         "verified": false,
         "updated": true,
-        "contentHash": "39687417d17c39c31f432491e22905c1dbb77db83ba32cd2dab32d27291047de"
+        "contentHash": "new_deployment_base_sepolia"
       },
       {
         "name": "LiquidityPoolFacet",
-        "address": "0x0c06b474084e75249559Dc28A3f83B09bc626209",
-        "txHash": "0xa36137150f1c0a509bc617edb505d5ea1996da1ee97ec98b3d3e9a2e004d0db0",
+        "address": "0x10650e68021dcB92EAd3a7e413b6EEe30f281578",
+        "txHash": "0x5ac696925c652fdceda57e0d27bc8b888d3c760a14fad1a467480d56d41513b5",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1765467104196,
+        "timestamp": 1766201668689,
         "verified": false,
         "updated": true,
-        "contentHash": "5e3c784d39fe5949bb2096383a8e6ffec96f4f55ee1e340419bec923a525ff64"
+        "contentHash": "new_deployment_base_sepolia"
       },
       {
         "name": "OwnershipFacet",
@@ -94,13 +94,13 @@
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
         "timestamp": 1765467108355,
         "verified": false,
-        "updated": true,
+        "updated": false,
         "contentHash": "1b008319c8f5990b6c8b9e79ccb8120d9e76ff4ff78d2e8e4ca6efc5f0292531"
       }
     ],
     "network": "baseSepolia",
     "chainId": 84532,
     "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-    "deployedAt": 1765467201321
+    "deployedAt": 1766201582113
   }
 }

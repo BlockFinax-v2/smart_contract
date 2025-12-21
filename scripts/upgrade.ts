@@ -313,18 +313,52 @@ async function main() {
   const updatedFacets: string[] = [];
   const newFacets: string[] = [];
   
+  // Get current facets from Diamond to compare addresses
+  console.log(`   Reading Diamond state...`);
+  const currentFacets = await getCurrentFacets(deployment.diamond);
+  
   for (const facetName of UPGRADEABLE_FACET_NAMES) {
-    const isUpdated = isContractUpdated(facetName);
     const existingFacet = deployment.facets.find(f => f.name === facetName);
     
     if (!existingFacet) {
       console.log(`   🆕 ${facetName} - NEW (will be added)`);
       newFacets.push(facetName);
-    } else if (isUpdated) {
-      console.log(`   ✨ ${facetName} - UPDATED (will be replaced)`);
-      updatedFacets.push(facetName);
     } else {
-      console.log(`   ✓ ${facetName} - Up to date`);
+      // Check if facet is marked as updated OR if address in Diamond differs from deployment
+      const diamondFacet = currentFacets.find(cf => 
+        cf.functionSelectors.length > 0 && 
+        cf.facetAddress.toLowerCase() !== ethers.ZeroAddress.toLowerCase()
+      );
+      
+      // Get a sample selector from the deployed facet to find it in Diamond
+      const deployedFacetContract = await ethers.getContractAt(facetName, existingFacet.address);
+      const deployedSelectors = getSelectors(deployedFacetContract);
+      
+      // Find which facet in Diamond has these selectors
+      let addressInDiamond = ethers.ZeroAddress;
+      if (deployedSelectors.length > 0) {
+        const sampleSelector = deployedSelectors[0];
+        for (const cf of currentFacets) {
+          if (cf.functionSelectors.includes(sampleSelector)) {
+            addressInDiamond = cf.facetAddress;
+            break;
+          }
+        }
+      }
+      
+      // Check if updated flag is set OR if Diamond address differs from deployment
+      const addressChanged = addressInDiamond.toLowerCase() !== existingFacet.address.toLowerCase();
+      
+      if (existingFacet.updated || addressChanged) {
+        console.log(`   ✨ ${facetName} - UPDATED (will be replaced)`);
+        if (addressChanged) {
+          console.log(`      Diamond: ${addressInDiamond}`);
+          console.log(`      Deployment: ${existingFacet.address}`);
+        }
+        updatedFacets.push(facetName);
+      } else {
+        console.log(`   ✓ ${facetName} - Up to date`);
+      }
     }
   }
   
@@ -359,11 +393,6 @@ async function main() {
   console.log(`   Updated facets: ${updatedFacets.length}`);
   console.log(`   Removed facets: ${removedFacets.length}`);
   
-  // Get current facets from Diamond
-  console.log(`\n🔎 Reading current Diamond state...`);
-  const currentFacets = await getCurrentFacets(deployment.diamond);
-  console.log(`   Current facets: ${currentFacets.length}`);
-  
   // Prepare upgrade: Deploy new/updated facets
   const facetCuts: FacetCut[] = [];
   const newDeployments: FacetDeployment[] = [];
@@ -385,21 +414,42 @@ async function main() {
     console.log(`   ➕ ADD ${facetName}: ${selectors.length} functions`);
   }
   
-  // 2. Deploy and prepare REPLACE operations for updated facets
+  // 2. Prepare REPLACE operations for updated facets (use already deployed versions from deploy.ts)
   for (const facetName of updatedFacets) {
-    const facetDeployment = await deployFacet(facetName, deployerAddress);
-    newDeployments.push(facetDeployment);
+    const existingFacet = deployment.facets.find(f => f.name === facetName);
+    if (!existingFacet) {
+      console.log(`   ⚠️  ${facetName} not found in deployment history`);
+      continue;
+    }
     
-    const facet = await ethers.getContractAt(facetName, facetDeployment.address);
+    // Use the already deployed version from deploy.ts
+    const deployedAddress = existingFacet.address;
+    console.log(`\n♻️  Using deployed ${facetName} at: ${deployedAddress}`);
+    
+    // Get selectors from the deployed facet
+    const facet = await ethers.getContractAt(facetName, deployedAddress);
     const selectors = getSelectors(facet);
     
+    // Use REPLACE to swap the old implementation with the new one
     facetCuts.push({
-      facetAddress: facetDeployment.address,
+      facetAddress: deployedAddress,
       action: FacetCutAction.Replace,
       functionSelectors: selectors
     });
     
-    console.log(`   🔄 REPLACE ${facetName}: ${selectors.length} functions`);
+    console.log(`   🔄 REPLACE ${facetName} in Diamond with ${deployedAddress} (${selectors.length} functions)`);
+    
+    // Keep the facet in newDeployments for verification tracking
+    newDeployments.push({
+      name: facetName,
+      address: deployedAddress,
+      txHash: existingFacet.txHash,
+      deployer: existingFacet.deployer,
+      timestamp: existingFacet.timestamp,
+      verified: existingFacet.verified,
+      updated: false, // Mark as not updated since we're using the deployed version
+      contentHash: existingFacet.contentHash
+    });
   }
   
   // 3. Prepare REMOVE operations for removed facets
