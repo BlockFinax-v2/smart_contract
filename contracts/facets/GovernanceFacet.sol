@@ -900,9 +900,7 @@ contract GovernanceFacet is ReentrancyGuard {
     /**
      * @notice Check if a token is supported for staking
      */
-    function isTokenSupported(
-        address tokenAddress
-    ) external view returns (bool) {
+    function isTokenSupported(address tokenAddress) external view returns (bool) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         return s.isStakingTokenSupported[tokenAddress];
     }
@@ -910,9 +908,7 @@ contract GovernanceFacet is ReentrancyGuard {
     /**
      * @notice Get total staked amount for a specific token
      */
-    function getTotalStakedForToken(
-        address tokenAddress
-    ) external view returns (uint256) {
+    function getTotalStakedForToken(address tokenAddress) external view returns (uint256) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         return s.totalStakedPerToken[tokenAddress];
     }

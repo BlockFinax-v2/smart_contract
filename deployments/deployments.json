@@ -64,28 +64,28 @@
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
         "timestamp": 1765467090127,
         "verified": false,
-        "updated": false,
+        "updated": true,
         "contentHash": "0469d0425c73b8e79e4669698f1ff18d1338c2bb72a55d32b8b05a9e8d779454"
       },
       {
         "name": "GovernanceFacet",
-        "address": "0x85c242c8EA73B35753a91971482Bd8cc5AB8e165",
-        "txHash": "0x24c8a2b2fd76da87888ce196de27f2f2c5aeb3c0603b5d28b059119e8c66c5fa",
+        "address": "0x45538A53FA67cc3AC5DBE31b53eA37c26578034B",
+        "txHash": "0x2f3d9f1a3063b521e5278e1c7afee381daf29ab69f33be78fde924b3e9c8997d",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1766201668689,
+        "timestamp": 1765467098818,
         "verified": false,
         "updated": true,
-        "contentHash": "new_deployment_base_sepolia"
+        "contentHash": "outdated_needs_redeploy"
       },
       {
         "name": "LiquidityPoolFacet",
-        "address": "0x10650e68021dcB92EAd3a7e413b6EEe30f281578",
-        "txHash": "0x5ac696925c652fdceda57e0d27bc8b888d3c760a14fad1a467480d56d41513b5",
+        "address": "0x0c06b474084e75249559Dc28A3f83B09bc626209",
+        "txHash": "0xa36137150f1c0a509bc617edb505d5ea1996da1ee97ec98b3d3e9a2e004d0db0",
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-        "timestamp": 1766201668689,
+        "timestamp": 1765467104196,
         "verified": false,
         "updated": true,
-        "contentHash": "new_deployment_base_sepolia"
+        "contentHash": "outdated_needs_redeploy"
       },
       {
         "name": "OwnershipFacet",
@@ -94,13 +94,13 @@
         "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
         "timestamp": 1765467108355,
         "verified": false,
-        "updated": false,
+        "updated": true,
         "contentHash": "1b008319c8f5990b6c8b9e79ccb8120d9e76ff4ff78d2e8e4ca6efc5f0292531"
       }
     ],
     "network": "baseSepolia",
     "chainId": 84532,
     "deployer": "0xf070F568c125b2740391136662Fc600A2A29D2A6",
-    "deployedAt": 1766201582113
+    "deployedAt": 1765467201321
   }
 }
