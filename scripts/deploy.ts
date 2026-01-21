@@ -328,25 +328,45 @@ async function main() {
   if (diamondInitUpdated) console.log(`   ✨ DiamondInit - UPDATED`);
   
   // Deploy or reuse MockUSDC (only for testnet)
+  // For mainnet, use actual token addresses
   let mockUSDC: any;
-  let mockUSDCAddress = "";
+  let usdcTokenAddress = "";
+  
+  // Mainnet token addresses
+  const MAINNET_TOKENS: { [network: string]: string } = {
+    "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base Mainnet
+    "lisk": "0x0000000000000000000000000000000000000000", // TODO: Replace with actual USDC on Lisk Mainnet
+  };
   
   if (network.includes("Sepolia") || network.includes("testnet")) {
+    // Testnet: Deploy or reuse MockUSDC
     if (previousDeployment?.mockUSDC && !isContractUpdated("MockERC20")) {
-      mockUSDCAddress = previousDeployment.mockUSDC;
-      console.log(`\n♻️  Reusing MockUSDC at: ${mockUSDCAddress}`);
+      usdcTokenAddress = previousDeployment.mockUSDC;
+      console.log(`\n♻️  Reusing MockUSDC at: ${usdcTokenAddress}`);
     } else {
       console.log(`\n📦 Deploying MockUSDC...`);
       const MockERC20 = await ethers.getContractFactory("MockERC20");
-      mockUSDC = await MockERC20.deploy("Mock USDC", "USDC", 18);
+      mockUSDC = await MockERC20.deploy("Mock USDC", "USDC", 6); // USDC uses 6 decimals
       await mockUSDC.waitForDeployment();
-      mockUSDCAddress = await mockUSDC.getAddress();
-      console.log(`✅ MockUSDC deployed at: ${mockUSDCAddress}`);
+      usdcTokenAddress = await mockUSDC.getAddress();
+      console.log(`✅ MockUSDC deployed at: ${usdcTokenAddress}`);
     }
   } else {
-    // For mainnet, you should use actual USDC address
-    console.log(`\n⚠️  MAINNET: Please set the actual USDC token address in the code!`);
-    process.exit(1);
+    // Mainnet: Use actual USDC address
+    if (MAINNET_TOKENS[network]) {
+      usdcTokenAddress = MAINNET_TOKENS[network];
+      console.log(`\n💎 Using mainnet USDC token at: ${usdcTokenAddress}`);
+      
+      // Verify the token address is not zero
+      if (usdcTokenAddress === "0x0000000000000000000000000000000000000000") {
+        console.error(`\n❌ ERROR: Please set the actual USDC token address for ${network} in the MAINNET_TOKENS mapping!`);
+        process.exit(1);
+      }
+    } else {
+      console.error(`\n❌ ERROR: No USDC token address configured for network: ${network}`);
+      console.error(`   Please add it to the MAINNET_TOKENS mapping in the deploy script.`);
+      process.exit(1);
+    }
   }
   
   // Deploy DiamondCutFacet first (needed for Diamond constructor)
@@ -448,7 +468,7 @@ async function main() {
     const DiamondInitFactory = await ethers.getContractFactory("DiamondInit");
     const diamondInit = DiamondInitFactory.attach(diamondInitAddress);
     const initData = diamondInit.interface.encodeFunctionData("init", [
-      mockUSDCAddress,
+      usdcTokenAddress,
       ethers.parseEther("100"), // minimumStake
       1200, // initialApr: 12%
       7 * 24 * 60 * 60, // minLockDuration: 7 days
@@ -510,11 +530,11 @@ async function main() {
     );
   }
   
-  // Verify MockUSDC (if newly deployed)
+  // Verify MockUSDC (if newly deployed on testnet)
   if (mockUSDC) {
     await verifyContract(
-      mockUSDCAddress,
-      ["Mock USDC", "USDC", 18],
+      usdcTokenAddress,
+      ["Mock USDC", "USDC", 6],
       network,
       "contracts/mocks/MockERC20.sol:MockERC20"
     );
@@ -536,7 +556,7 @@ async function main() {
     diamond: diamondAddress,
     diamondInit: diamondInitAddress,
     diamondCutFacet: diamondCutFacetAddress,
-    mockUSDC: mockUSDCAddress || undefined,
+    mockUSDC: usdcTokenAddress || undefined,
     facets: allFacets,
     network: network,
     chainId: Number(chainId),
@@ -565,8 +585,9 @@ async function main() {
   console.log(`   Diamond: ${diamondAddress}`);
   console.log(`   DiamondCutFacet: ${diamondCutFacetAddress}`);
   console.log(`   DiamondInit: ${diamondInitAddress}`);
-  if (mockUSDCAddress) {
-    console.log(`   MockUSDC: ${mockUSDCAddress}`);
+  if (usdcTokenAddress) {
+    const tokenLabel = mockUSDC ? "MockUSDC (Testnet)" : "USDC Token (Mainnet)";
+    console.log(`   ${tokenLabel}: ${usdcTokenAddress}`);
   }
   console.log(`\n   Facets:`);
   for (const facet of facetDeployments) {

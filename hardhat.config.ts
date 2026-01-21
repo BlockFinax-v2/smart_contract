@@ -42,10 +42,12 @@ const config: HardhatUserConfig = {
       httpHeaders: {},
     },
     base: {
-      url: BASE_RPC,
+      url: BASE_RPC || "https://base.llamarpc.com",
       accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
       chainId: 8453,
-      gasPrice: "auto"
+      gasPrice: "auto",
+      timeout: 120000,
+      httpHeaders: {},
     },
     liskSepolia: {
       url: LISK_SEPOLIA_RPC,
