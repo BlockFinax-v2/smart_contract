@@ -25,7 +25,7 @@ describe("Diamond Core Tests", function () {
           ethers.ZeroAddress,
           await diamondCutFacet.getAddress()
         )
-      ).to.be.revertedWith("LibDiamond: New owner cannot be the zero address");
+      ).to.be.revertedWith("Diamond: Invalid owner");
     });
 
     it("Should have correct owner", async function () {

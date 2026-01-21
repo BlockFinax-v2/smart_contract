@@ -7,6 +7,8 @@ const BASE_SEPOLIA_RPC = process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.o
 const BASE_RPC = process.env.BASE_RPC || "https://mainnet.base.org";
 const LISK_SEPOLIA_RPC = process.env.LISK_SEPOLIA_RPC || "https://rpc.sepolia-api.lisk.com";
 const LISK_RPC = process.env.LISK_RPC || "https://rpc.api.lisk.com";
+const ETH_SEPOLIA_RPC = process.env.ETH_SEPOLIA_RPC || "https://ethereum-sepolia-rpc.publicnode.com";
+const ETH_MAINNET_RPC = process.env.ETH_MAINNET_RPC || "https://eth.llamarpc.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY || "";
 const LISK_EXPLORER_KEY = process.env.LISK_EXPLORER_KEY || "";
@@ -61,6 +63,20 @@ const config: HardhatUserConfig = {
       accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
       chainId: 1135,
       gasPrice: "auto"
+    },
+    sepolia: {
+      url: ETH_SEPOLIA_RPC,
+      accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
+      chainId: 11155111,
+      gasPrice: "auto",
+      timeout: 60000,
+    },
+    mainnet: {
+      url: ETH_MAINNET_RPC,
+      accounts: [PRIVATE_KEY.startsWith("0x") ? PRIVATE_KEY : `0x${PRIVATE_KEY}`],
+      chainId: 1,
+      gasPrice: "auto",
+      timeout: 120000,
     }
   },
   etherscan: {
@@ -68,7 +84,9 @@ const config: HardhatUserConfig = {
       baseSepolia: "abc", // Blockscout doesn't require API key
       base: ETHERSCAN_API_KEY,
       liskSepolia: LISK_EXPLORER_KEY,
-      lisk: LISK_EXPLORER_KEY
+      lisk: LISK_EXPLORER_KEY,
+      sepolia: "abc", // Blockscout doesn't require API key
+      mainnet: ETHERSCAN_API_KEY
     },
     customChains: [
       {
@@ -101,6 +119,22 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://blockscout.lisk.com/api",
           browserURL: "https://blockscout.lisk.com"
+        }
+      },
+      {
+        network: "sepolia",
+        chainId: 11155111,
+        urls: {
+          apiURL: "https://eth-sepolia.blockscout.com/api",
+          browserURL: "https://eth-sepolia.blockscout.com"
+        }
+      },
+      {
+        network: "mainnet",
+        chainId: 1,
+        urls: {
+          apiURL: "https://api.etherscan.io/api",
+          browserURL: "https://etherscan.io"
         }
       }
     ]

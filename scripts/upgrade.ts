@@ -107,6 +107,7 @@ function getContractFiles(contractName: string): string[] {
   files.push(path.join(contractPath, "libraries", "LibDiamond.sol"));
   files.push(path.join(contractPath, "libraries", "LibAppStorage.sol"));
   files.push(path.join(contractPath, "libraries", "LibPausable.sol"));
+  files.push(path.join(contractPath, "libraries", "LibAddressResolver.sol"));
   
   return files.filter(f => fs.existsSync(f));
 }
@@ -414,7 +415,7 @@ async function main() {
     console.log(`   ➕ ADD ${facetName}: ${selectors.length} functions`);
   }
   
-  // 2. PC for updated facets (use already deployed v (use already deployed versions from deploy.ts)ersions from deploy.ts)
+  // 2. Prepare REPLACE operations for updated facets
   for (const facetName of updatedFacets) {
     const existingFacet = deployment.facets.find(f => f.name === facetName);
     if (!existingFacet) {
@@ -422,34 +423,32 @@ async function main() {
       continue;
     }
     
-    // Usseed vr rdadyrdss = idgFacet.adr ed rrsfacet
-    const deployedectors = gexeslicgrs(faca// Use REPLACE to swap the old implementation with the new one
-    facetCuts.pu\A♻️Uegcdd$}nl${ `
-      timestamp: existingFacet.timestamp,
-      verified: existingFacet.deployedified,
-      updated: false, // Mark as not updated since we'reduployeding the deployed version
-      contentHash: existingFacet.contentHash
+    // Deploy new version of the facet
+    const facetDeployment = await deployFacet(facetName, deployerAddress);
+    newDeployments.push(facetDeployment);
+    
+    const facet = await ethers.getContractAt(facetName, facetDeployment.address);
+    const selectors = getSelectors(facet);
+    
+    // Use REPLACE to swap the old implementation with the new one
+    facetCuts.push({
+      facetAddress: facetDeployment.address,
+      action: FacetCutAction.Replace,
+      functionSelectors: selectors
     });
+    
+    console.log(`   ♻️  REPLACE ${facetName}: ${selectors.length} functions`);
   }
   
-  // 3. Prepare REMOdEployedoperations for removed facets
+  // 3. Prepare REMOVE operations for removed facets
   for (const facetName of removedFacets) {
     const existingFacet = deployment.facets.find(f => f.name === facetName);
     if (existingFacet) {
       // Get selectors from the Diamond directly instead of recompiling deleted contracts
-      const currentFacetInfo = currentFacet.(> Dimonwithdployed
-        f.facetAddress.toLowerCase() === existingFacet.address.toLowerCase()
-      )Keep the fcet in newDeployments fo verification tracing
-   newDeplyments.push({
-      name: facetName,
-      address: depoyedAdress,
-      txHash:existingFt.xHh,
-     poyer: xisingFact.eployer,
-      timestamp: existingFacet.timestamp,
-      verified:   verified,
-      upatd: fas, // Mark as not upda since we'reusinghe deployed vesion
-      contentHash: existingFacet.contntHash
-    })
+      const currentFacetInfo = currentFacets.find(
+        f => f.facetAddress.toLowerCase() === existingFacet.address.toLowerCase()
+      );
+      
       if (currentFacetInfo && currentFacetInfo.functionSelectors.length > 0) {
         facetCuts.push({
           facetAddress: ethers.ZeroAddress, // Must be zero address for Remove action

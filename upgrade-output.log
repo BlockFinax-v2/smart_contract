@@ -1,0 +1,133 @@
+[dotenv@17.2.3] injecting env (8) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:859
+    return new TSError(diagnosticText, diagnosticCodes, diagnostics);
+           ^
+TSError: ⨯ Unable to compile TypeScript:
+scripts/upgrade.ts(428,5): error TS1005: ',' expected.
+scripts/upgrade.ts(428,17): error TS1127: Invalid character.
+scripts/upgrade.ts(428,19): error TS1127: Invalid character.
+scripts/upgrade.ts(428,20): error TS1127: Invalid character.
+scripts/upgrade.ts(428,28): error TS1005: ',' expected.
+scripts/upgrade.ts(428,29): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(461,25): error TS1127: Invalid character.
+scripts/upgrade.ts(461,27): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(461,34): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(461,46): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(461,48): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(461,102): error TS1443: Module declaration names may only use ' or " quoted strings.
+scripts/upgrade.ts(463,25): error TS1127: Invalid character.
+scripts/upgrade.ts(463,25): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(463,26): error TS1127: Invalid character.
+scripts/upgrade.ts(463,29): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(463,42): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(463,72): error TS1005: ',' expected.
+scripts/upgrade.ts(463,80): error TS1109: Expression expected.
+scripts/upgrade.ts(470,18): error TS1127: Invalid character.
+scripts/upgrade.ts(470,20): error TS1127: Invalid character.
+scripts/upgrade.ts(470,21): error TS1127: Invalid character.
+scripts/upgrade.ts(470,24): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(470,34): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(470,42): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(470,49): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(471,21): error TS1005: ';' expected.
+scripts/upgrade.ts(471,39): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(478,23): error TS1005: ';' expected.
+scripts/upgrade.ts(478,41): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(481,23): error TS1127: Invalid character.
+scripts/upgrade.ts(481,25): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(481,45): error TS1005: ';' expected.
+scripts/upgrade.ts(481,55): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(483,22): error TS1127: Invalid character.
+scripts/upgrade.ts(483,24): error TS1127: Invalid character.
+scripts/upgrade.ts(483,26): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(483,42): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(489,16): error TS1127: Invalid character.
+scripts/upgrade.ts(489,18): error TS1127: Invalid character.
+scripts/upgrade.ts(489,21): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(489,41): error TS1005: ';' expected.
+scripts/upgrade.ts(495,8): error TS1005: ';' expected.
+scripts/upgrade.ts(495,26): error TS1005: ';' expected.
+scripts/upgrade.ts(495,48): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(495,53): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(501,16): error TS1127: Invalid character.
+scripts/upgrade.ts(501,18): error TS1127: Invalid character.
+scripts/upgrade.ts(501,21): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(501,30): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(501,41): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(501,48): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(537,16): error TS1127: Invalid character.
+scripts/upgrade.ts(537,18): error TS1127: Invalid character.
+scripts/upgrade.ts(537,20): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(537,30): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(537,38): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(537,43): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(539,19): error TS1005: ';' expected.
+scripts/upgrade.ts(539,25): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(539,32): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(539,47): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(542,16): error TS1127: Invalid character.
+scripts/upgrade.ts(542,18): error TS1127: Invalid character.
+scripts/upgrade.ts(542,20): error TS1127: Invalid character.
+scripts/upgrade.ts(542,23): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(542,31): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(542,54): error TS1443: Module declaration names may only use ' or " quoted strings.
+scripts/upgrade.ts(543,16): error TS1127: Invalid character.
+scripts/upgrade.ts(543,16): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(543,18): error TS1127: Invalid character.
+scripts/upgrade.ts(543,21): error TS1435: Unknown keyword or identifier. Did you mean 'finally'?
+scripts/upgrade.ts(544,19): error TS1005: ';' expected.
+scripts/upgrade.ts(544,28): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(545,19): error TS1005: ';' expected.
+scripts/upgrade.ts(545,33): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(546,16): error TS1127: Invalid character.
+scripts/upgrade.ts(546,17): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(546,21): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(554,21): error TS1005: ';' expected.
+scripts/upgrade.ts(554,31): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(554,43): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(554,55): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(554,57): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(554,85): error TS1005: ')' expected.
+scripts/upgrade.ts(554,122): error TS1435: Unknown keyword or identifier. Did you mean 'function'?
+scripts/upgrade.ts(554,131): error TS1128: Declaration or statement expected.
+scripts/upgrade.ts(557,16): error TS1127: Invalid character.
+scripts/upgrade.ts(557,18): error TS1127: Invalid character.
+scripts/upgrade.ts(557,21): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(557,32): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(557,37): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(557,47): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(558,16): error TS1127: Invalid character.
+scripts/upgrade.ts(558,18): error TS1127: Invalid character.
+scripts/upgrade.ts(558,20): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(558,25): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(558,33): error TS1228: A type predicate is only allowed in return type position for functions and methods.
+scripts/upgrade.ts(558,36): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(558,40): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(558,43): error TS1434: Unexpected keyword or identifier.
+scripts/upgrade.ts(568,1): error TS1160: Unterminated template literal.
+
+    at createTSError (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:859:12)
+    at reportTSError (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:863:19)
+    at /home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:1379:34
+    at Object.compile (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:1458:13)
+    at Module.m._compile (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:1617:30)
+    at node:internal/modules/cjs/loader:1893:10
+    at Object.require.extensions.<computed> [as .ts] (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ts-node/src/index.ts:1621:12)
+    at Module.load (node:internal/modules/cjs/loader:1481:32)
+    at Module._load (node:internal/modules/cjs/loader:1300:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:328:14) {
+  diagnosticCodes: [
+    1005, 1127, 1127, 1127, 1005, 1434, 1127, 1434, 1434, 1128,
+    1434, 1443, 1127, 1128, 1127, 1434, 1434, 1005, 1109, 1127,
+    1127, 1127, 1434, 1434, 1434, 1128, 1005, 1434, 1005, 1434,
+    1127, 1434, 1005, 1434, 1127, 1127, 1434, 1434, 1127, 1127,
+    1434, 1005, 1005, 1005, 1128, 1434, 1127, 1127, 1434, 1434,
+    1434, 1128, 1127, 1127, 1434, 1434, 1434, 1128, 1005, 1434,
+    1434, 1434, 1127, 1127, 1127, 1434, 1434, 1443, 1127, 1128,
+    1127, 1435, 1005, 1434, 1005, 1434, 1127, 1434, 1434, 1005,
+    1434, 1434, 1128, 1434, 1005, 1435, 1128, 1127, 1127, 1434,
+    1434, 1434, 1434, 1127, 1127, 1434, 1434, 1228, 1434, 1434,
+    ... 2 more items
+  ]
+}

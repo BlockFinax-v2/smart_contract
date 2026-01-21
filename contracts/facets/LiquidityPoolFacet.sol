@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "../libraries/LibAppStorage.sol";
 import "../libraries/LibDiamond.sol";
+import "../libraries/LibAddressResolver.sol";
 
 contract LiquidityPoolFacet is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -96,12 +97,16 @@ contract LiquidityPoolFacet is ReentrancyGuard {
 
     /**
      * @notice Stake USDC tokens to become LP provider with custom deadline
+     * @dev Uses address resolution: EOA is primary identity, smart account transactions resolve to EOA
      */
     function stake(
         uint256 amount,
         uint256 customDeadline
     ) external nonReentrant whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
         // Checks
         if (amount == 0) revert ZeroAmount();
@@ -122,53 +127,57 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             revert InsufficientAllowance();
 
         // Effects - Update rewards before modifying stake
-        _updateRewards(msg.sender);
+        _updateRewards(staker);
 
         // Interactions (external calls)
         usdc.safeTransferFrom(msg.sender, address(this), amount);
 
-        // Update stake record
-        if (s.stakes[msg.sender].amount == 0) {
-            s.stakers.push(msg.sender);
+        // Update stake record (using primary identity)
+        if (s.stakes[staker].amount == 0) {
+            s.stakers.push(staker);
             s.totalLiquidityProviders++;
         }
 
-        s.stakes[msg.sender].amount += amount;
-        s.stakes[msg.sender].timestamp = block.timestamp;
-        s.stakes[msg.sender].lastRewardTimestamp = block.timestamp;
-        s.stakes[msg.sender].deadline = customDeadline;
-        s.stakes[msg.sender].active = true;
+        s.stakes[staker].amount += amount;
+        s.stakes[staker].timestamp = block.timestamp;
+        s.stakes[staker].lastRewardTimestamp = block.timestamp;
+        s.stakes[staker].deadline = customDeadline;
+        s.stakes[staker].active = true;
 
         // Update total staked and reward rate
         s.totalStaked += amount;
         _updateRewardRate();
 
         // Calculate voting power
-        s.stakes[msg.sender].votingPower =
-            (s.stakes[msg.sender].amount * PRECISION) /
+        s.stakes[staker].votingPower =
+            (s.stakes[staker].amount * PRECISION) /
             s.totalStaked;
 
         // Recalculate all voting powers
         _recalculateVotingPowers();
 
         emit Staked(
-            msg.sender,
+            staker,
             amount,
-            s.stakes[msg.sender].votingPower,
+            s.stakes[staker].votingPower,
             s.currentRewardRate,
             customDeadline,
-            s.stakes[msg.sender].isFinancier
+            s.stakes[staker].isFinancier
         );
     }
 
     /**
      * @notice Stake as financier with higher minimum and voting rights
+     * @dev Uses address resolution: EOA is primary identity
      */
     function stakeAsFinancier(
         uint256 amount,
         uint256 customDeadline
     ) external nonReentrant whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
         if (amount == 0) revert ZeroAmount();
         if (amount < s.minimumFinancierStake) {
@@ -185,74 +194,77 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         if (usdc.balanceOf(msg.sender) < amount) revert InsufficientBalance();
 
         // Update rewards before modifying stake
-        _updateRewards(msg.sender);
+        _updateRewards(staker);
 
         // Transfer USDC from staker to diamond
         usdc.safeTransferFrom(msg.sender, address(this), amount);
 
-        // Update stake record
-        if (s.stakes[msg.sender].amount == 0) {
-            s.stakers.push(msg.sender);
+        // Update stake record (using primary identity)
+        if (s.stakes[staker].amount == 0) {
+            s.stakers.push(staker);
             s.totalLiquidityProviders++;
         }
 
-        s.stakes[msg.sender].amount += amount;
-        s.stakes[msg.sender].timestamp = block.timestamp;
-        s.stakes[msg.sender].lastRewardTimestamp = block.timestamp;
-        s.stakes[msg.sender].deadline = customDeadline;
-        s.stakes[msg.sender].active = true;
-        s.stakes[msg.sender].isFinancier = true; // Mark as financier
+        s.stakes[staker].amount += amount;
+        s.stakes[staker].timestamp = block.timestamp;
+        s.stakes[staker].lastRewardTimestamp = block.timestamp;
+        s.stakes[staker].deadline = customDeadline;
+        s.stakes[staker].active = true;
+        s.stakes[staker].isFinancier = true; // Mark as financier
 
         // Update total staked and reward rate
         s.totalStaked += amount;
         _updateRewardRate();
 
         // Calculate voting power
-        s.stakes[msg.sender].votingPower =
-            (s.stakes[msg.sender].amount * PRECISION) /
+        s.stakes[staker].votingPower =
+            (s.stakes[staker].amount * PRECISION) /
             s.totalStaked;
 
         // Recalculate all voting powers
         _recalculateVotingPowers();
 
         emit Staked(
-            msg.sender,
+            staker,
             amount,
-            s.stakes[msg.sender].votingPower,
+            s.stakes[staker].votingPower,
             s.currentRewardRate,
             customDeadline,
             true
         );
-        emit FinancierStatusChanged(msg.sender, true);
+        emit FinancierStatusChanged(staker, true);
     }
 
     /**
      * @notice Unstake USDC tokens after custom deadline
+     * @dev Uses address resolution: EOA is primary identity
      */
     function unstake(uint256 amount) external nonReentrant whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
-        if (!s.stakes[msg.sender].active) revert NoActiveStake();
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
+
+        if (!s.stakes[staker].active) revert NoActiveStake();
         if (amount == 0) revert ZeroAmount();
-        if (amount > s.stakes[msg.sender].amount)
-            revert InsufficientStakedAmount();
-        if (block.timestamp < s.stakes[msg.sender].deadline) {
+        if (amount > s.stakes[staker].amount) revert InsufficientStakedAmount();
+        if (block.timestamp < s.stakes[staker].deadline) {
             revert LockDurationNotMet();
         }
 
         // Update rewards before withdrawal
-        _updateRewards(msg.sender);
+        _updateRewards(staker);
 
-        uint256 rewards = s.stakes[msg.sender].pendingRewards;
+        uint256 rewards = s.stakes[staker].pendingRewards;
 
         // Update stake state
-        s.stakes[msg.sender].amount -= amount;
+        s.stakes[staker].amount -= amount;
         s.totalStaked -= amount;
 
         // If fully unstaking, mark as inactive and remove from providers
-        if (s.stakes[msg.sender].amount == 0) {
-            s.stakes[msg.sender].active = false;
-            s.stakes[msg.sender].votingPower = 0;
+        if (s.stakes[staker].amount == 0) {
+            s.stakes[staker].active = false;
+            s.stakes[staker].votingPower = 0;
             s.totalLiquidityProviders--;
         }
 
@@ -263,20 +275,24 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         // Transfer principal + rewards
         uint256 totalTransfer = amount + rewards;
         if (rewards > 0) {
-            s.stakes[msg.sender].pendingRewards = 0;
+            s.stakes[staker].pendingRewards = 0;
         }
 
         IERC20(s.usdcToken).safeTransfer(msg.sender, totalTransfer);
 
-        emit Unstaked(msg.sender, amount, rewards);
+        emit Unstaked(staker, amount, rewards);
     }
 
     /**
      * @notice Emergency withdraw with penalty (ignores lock period, not available for financiers)
+     * @dev Uses address resolution: EOA is primary identity
      */
     function emergencyWithdraw() external nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        LibAppStorage.Stake storage userStake = s.stakes[msg.sender];
+
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
+        LibAppStorage.Stake storage userStake = s.stakes[staker];
 
         // Checks
         if (!userStake.active) revert NoActiveStake();
@@ -314,76 +330,92 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         // Transfer amount minus penalty
         IERC20(s.usdcToken).safeTransfer(msg.sender, withdrawAmount);
 
-        emit EmergencyWithdrawn(msg.sender, withdrawAmount, penalty);
+        emit EmergencyWithdrawn(staker, withdrawAmount, penalty);
     }
 
     /**
      * @notice Claim accumulated rewards without unstaking
+     * @dev Uses address resolution: EOA is primary identity
      */
     function claimRewards() external nonReentrant whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
-        if (!s.stakes[msg.sender].active) revert NoActiveStake();
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
-        _updateRewards(msg.sender);
-        uint256 rewards = s.stakes[msg.sender].pendingRewards;
+        if (!s.stakes[staker].active) revert NoActiveStake();
+
+        _updateRewards(staker);
+        uint256 rewards = s.stakes[staker].pendingRewards;
         if (rewards == 0) revert NoRewardsToCllaim();
 
-        s.stakes[msg.sender].pendingRewards = 0;
-        s.stakes[msg.sender].rewardDebt = 0;
+        s.stakes[staker].pendingRewards = 0;
+        s.stakes[staker].rewardDebt = 0;
 
         IERC20(s.usdcToken).safeTransfer(msg.sender, rewards);
 
-        emit RewardsClaimed(msg.sender, rewards);
+        emit RewardsClaimed(staker, rewards);
     }
 
     /**
      * @notice Apply to become a financier (must already have minimum stake)
+     * @dev Uses address resolution: EOA is primary identity
      */
     function applyAsFinancier() external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
-        require(s.stakes[msg.sender].active, "Must be active staker");
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
+
+        require(s.stakes[staker].active, "Must be active staker");
         require(
-            s.stakes[msg.sender].amount >= s.minimumFinancierStake,
+            s.stakes[staker].amount >= s.minimumFinancierStake,
             "Insufficient stake for financier status"
         );
-        require(!s.stakes[msg.sender].isFinancier, "Already a financier");
+        require(!s.stakes[staker].isFinancier, "Already a financier");
 
         // Update deadline to meet financier minimum
         uint256 minFinancierDeadline = block.timestamp +
             s.minFinancierLockDuration;
-        if (s.stakes[msg.sender].deadline < minFinancierDeadline) {
-            s.stakes[msg.sender].deadline = minFinancierDeadline;
-            emit CustomDeadlineSet(msg.sender, minFinancierDeadline);
+        if (s.stakes[staker].deadline < minFinancierDeadline) {
+            s.stakes[staker].deadline = minFinancierDeadline;
+            emit CustomDeadlineSet(staker, minFinancierDeadline);
         }
 
-        s.stakes[msg.sender].isFinancier = true;
-        emit FinancierStatusChanged(msg.sender, true);
+        s.stakes[staker].isFinancier = true;
+        emit FinancierStatusChanged(staker, true);
     }
 
     /**
      * @notice Revoke financier status (cannot vote anymore)
+     * @dev Uses address resolution: EOA is primary identity
      */
     function revokeFinancierStatus() external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
-        require(s.stakes[msg.sender].isFinancier, "Not a financier");
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
-        s.stakes[msg.sender].isFinancier = false;
-        emit FinancierStatusChanged(msg.sender, false);
+        require(s.stakes[staker].isFinancier, "Not a financier");
+
+        s.stakes[staker].isFinancier = false;
+        emit FinancierStatusChanged(staker, false);
     }
 
     /**
      * @notice Set custom deadline for existing stake
+     * @dev Uses address resolution: EOA is primary identity
      */
     function setCustomDeadline(uint256 newDeadline) external {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
-        require(s.stakes[msg.sender].active, "Must be active staker");
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
+
+        require(s.stakes[staker].active, "Must be active staker");
 
         uint256 minDeadline;
-        if (s.stakes[msg.sender].isFinancier) {
+        if (s.stakes[staker].isFinancier) {
             minDeadline = block.timestamp + s.minFinancierLockDuration;
         } else {
             minDeadline = block.timestamp + s.minNormalStakerLockDuration;
@@ -391,12 +423,13 @@ contract LiquidityPoolFacet is ReentrancyGuard {
 
         require(newDeadline >= minDeadline, "Deadline below minimum required");
 
-        s.stakes[msg.sender].deadline = newDeadline;
-        emit CustomDeadlineSet(msg.sender, newDeadline);
+        s.stakes[staker].deadline = newDeadline;
+        emit CustomDeadlineSet(staker, newDeadline);
     }
 
     /**
      * @notice Get stake information with financier status
+     * @dev Resolves address to primary identity (EOA)
      */
     function getStake(
         address staker
@@ -415,7 +448,10 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         )
     {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        LibAppStorage.Stake memory stakeData = s.stakes[staker];
+
+        // Resolve address to primary identity (EOA)
+        address resolvedStaker = LibAddressResolver.resolveToEOA(staker);
+        LibAppStorage.Stake memory stakeData = s.stakes[resolvedStaker];
 
         uint256 unlockTime = block.timestamp >= stakeData.deadline
             ? 0
@@ -426,7 +462,7 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             stakeData.timestamp,
             stakeData.votingPower,
             stakeData.active,
-            getPendingRewards(staker),
+            getPendingRewards(resolvedStaker),
             unlockTime,
             stakeData.deadline,
             stakeData.isFinancier
@@ -435,13 +471,18 @@ contract LiquidityPoolFacet is ReentrancyGuard {
 
     /**
      * @notice Check if address is eligible financier
+     * @dev Resolves address to primary identity (EOA)
      */
     function isEligibleFinancier(address staker) external view returns (bool) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address resolvedStaker = LibAddressResolver.resolveToEOA(staker);
+
         return
-            s.stakes[staker].active &&
-            s.stakes[staker].isFinancier &&
-            s.stakes[staker].amount >= s.minimumFinancierStake;
+            s.stakes[resolvedStaker].active &&
+            s.stakes[resolvedStaker].isFinancier &&
+            s.stakes[resolvedStaker].amount >= s.minimumFinancierStake;
     }
 
     /**
@@ -507,10 +548,14 @@ contract LiquidityPoolFacet is ReentrancyGuard {
 
     /**
      * @notice Get pending rewards for a staker
+     * @dev Resolves address to primary identity (EOA)
      */
     function getPendingRewards(address staker) public view returns (uint256) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        LibAppStorage.Stake storage user = s.stakes[staker];
+
+        // Resolve address to primary identity (EOA)
+        address resolvedStaker = LibAddressResolver.resolveToEOA(staker);
+        LibAppStorage.Stake storage user = s.stakes[resolvedStaker];
 
         if (user.amount == 0 || !user.active) {
             return user.pendingRewards;

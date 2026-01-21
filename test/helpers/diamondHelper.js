@@ -58,6 +58,10 @@ async function deployDiamond() {
   const liquidityPoolFacet = await LiquidityPoolFacet.deploy();
   await liquidityPoolFacet.waitForDeployment();
 
+  const AddressLinkingFacet = await ethers.getContractFactory("AddressLinkingFacet");
+  const addressLinkingFacet = await AddressLinkingFacet.deploy();
+  await addressLinkingFacet.waitForDeployment();
+
   // Deploy MockERC20 for testing
   const MockERC20 = await ethers.getContractFactory("MockERC20");
   const mockUSDC = await MockERC20.deploy(
@@ -96,6 +100,11 @@ async function deployDiamond() {
       facetAddress: await liquidityPoolFacet.getAddress(),
       action: FacetCutAction.Add,
       functionSelectors: getSelectors(liquidityPoolFacet)
+    },
+    {
+      facetAddress: await addressLinkingFacet.getAddress(),
+      action: FacetCutAction.Add,
+      functionSelectors: getSelectors(addressLinkingFacet)
     }
   ];
 
@@ -119,6 +128,7 @@ async function deployDiamond() {
     ownershipFacet,
     governanceFacet,
     liquidityPoolFacet,
+    addressLinkingFacet,
     mockUSDC,
     owner,
     addr1,

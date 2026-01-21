@@ -98,6 +98,7 @@ function getContractFiles(contractName: string): string[] {
   files.push(path.join(contractPath, "libraries", "LibDiamond.sol"));
   files.push(path.join(contractPath, "libraries", "LibAppStorage.sol"));
   files.push(path.join(contractPath, "libraries", "LibPausable.sol"));
+  files.push(path.join(contractPath, "libraries", "LibAddressResolver.sol"));
   
   return files.filter(f => fs.existsSync(f));
 }
@@ -336,9 +337,10 @@ async function main() {
   const MAINNET_TOKENS: { [network: string]: string } = {
     "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base Mainnet
     "lisk": "0x0000000000000000000000000000000000000000", // TODO: Replace with actual USDC on Lisk Mainnet
+    "mainnet": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC on Ethereum Mainnet
   };
   
-  if (network.includes("Sepolia") || network.includes("testnet")) {
+  if (network.toLowerCase().includes("sepolia") || network.toLowerCase().includes("testnet")) {
     // Testnet: Deploy or reuse MockUSDC
     if (previousDeployment?.mockUSDC && !isContractUpdated("MockERC20")) {
       usdcTokenAddress = previousDeployment.mockUSDC;

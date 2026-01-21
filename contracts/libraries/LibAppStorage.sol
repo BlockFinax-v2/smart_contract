@@ -159,6 +159,10 @@ library LibAppStorage {
     }
 
     struct AppStorage {
+        // Address Linking (AA Support) - EOA as primary identity
+        mapping(address => address) smartAccountToEOA; // Smart Account -> EOA (primary identity)
+        mapping(address => address) eoaToSmartAccount; // EOA -> Smart Account (reverse lookup)
+        mapping(address => bool) isLinkedSmartAccount; // Quick check if address is a linked smart account
         // Liquidity Pool Storage
         address usdcToken;
         address[] supportedStakingTokens;

@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "../libraries/LibAppStorage.sol";
 import "../libraries/LibDiamond.sol";
 import "../libraries/LibPausable.sol";
+import "../libraries/LibAddressResolver.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
@@ -83,10 +84,14 @@ contract GovernanceFacet is ReentrancyGuard {
 
     modifier onlyFinancier() {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
+
         if (
-            !s.stakes[msg.sender].active ||
-            !s.stakes[msg.sender].isFinancier ||
-            s.stakes[msg.sender].amount < s.minimumFinancierStake
+            !s.stakes[staker].active ||
+            !s.stakes[staker].isFinancier ||
+            s.stakes[staker].amount < s.minimumFinancierStake
         ) {
             revert NotFinancier();
         }
@@ -119,17 +124,23 @@ contract GovernanceFacet is ReentrancyGuard {
      * @notice Check if an address is a financier
      * @param account Address to check
      * @return bool True if address is a financier
+     * @dev Resolves address to primary identity (EOA)
      */
     function isFinancier(address account) external view returns (bool) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address resolvedAccount = LibAddressResolver.resolveToEOA(account);
+
         return
-            s.stakes[account].active &&
-            s.stakes[account].isFinancier &&
-            s.stakes[account].amount >= s.minimumFinancierStake;
+            s.stakes[resolvedAccount].active &&
+            s.stakes[resolvedAccount].isFinancier &&
+            s.stakes[resolvedAccount].amount >= s.minimumFinancierStake;
     }
 
     /**
      * @notice Create DAO proposal
+     * @dev Uses address resolution: EOA is primary identity
      */
     function createProposal(
         string calldata proposalId,
@@ -138,6 +149,9 @@ contract GovernanceFacet is ReentrancyGuard {
         string calldata description
     ) external whenNotPaused onlyFinancier nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address proposer = LibAddressResolver.resolveToEOA(msg.sender);
 
         // Checks
         if (bytes(proposalId).length == 0) revert InvalidProposalId();
@@ -150,7 +164,7 @@ contract GovernanceFacet is ReentrancyGuard {
         if (bytes(description).length > 1024) revert InvalidDescription(); // Reasonable limit
         if (s.proposals[proposalId].createdAt != 0)
             revert ProposalAlreadyExists();
-        if (s.stakes[msg.sender].amount < s.proposalThreshold)
+        if (s.stakes[proposer].amount < s.proposalThreshold)
             revert InsufficientStake();
 
         // Effects
@@ -158,7 +172,7 @@ contract GovernanceFacet is ReentrancyGuard {
 
         s.proposals[proposalId] = LibAppStorage.Proposal({
             proposalId: proposalId,
-            proposer: msg.sender,
+            proposer: proposer,
             category: category,
             title: title,
             description: description,
@@ -180,13 +194,14 @@ contract GovernanceFacet is ReentrancyGuard {
             proposalId,
             category,
             title,
-            msg.sender,
+            proposer,
             votingDeadline
         );
     }
 
     /**
      * @notice Vote on DAO proposal
+     * @dev Uses address resolution: EOA is primary identity
      */
     function voteOnProposal(
         string calldata proposalId,
@@ -195,20 +210,23 @@ contract GovernanceFacet is ReentrancyGuard {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.Proposal storage proposal = s.proposals[proposalId];
 
+        // Resolve address to primary identity (EOA)
+        address voter = LibAddressResolver.resolveToEOA(msg.sender);
+
         // Checks
         if (proposal.createdAt == 0) revert ProposalNotFound();
         if (proposal.status != LibAppStorage.ProposalStatus.Active)
             revert ProposalNotActive();
         if (block.timestamp > proposal.votingDeadline)
             revert VotingPeriodEnded();
-        if (s.hasVotedOnProposal[proposalId][msg.sender]) revert AlreadyVoted();
+        if (s.hasVotedOnProposal[proposalId][voter]) revert AlreadyVoted();
 
-        uint256 votingPower = s.stakes[msg.sender].votingPower;
+        uint256 votingPower = s.stakes[voter].votingPower;
         if (votingPower == 0) revert InsufficientStake();
 
         // Effects
-        s.hasVotedOnProposal[proposalId][msg.sender] = true;
-        s.voterSupport[proposalId][msg.sender] = support;
+        s.hasVotedOnProposal[proposalId][voter] = true;
+        s.voterSupport[proposalId][voter] = support;
 
         if (support) {
             proposal.votesFor += votingPower;
@@ -217,7 +235,7 @@ contract GovernanceFacet is ReentrancyGuard {
         }
 
         // Interactions (events)
-        emit ProposalVoteCast(proposalId, msg.sender, support, votingPower);
+        emit ProposalVoteCast(proposalId, voter, support, votingPower);
 
         // Internal function call (safe)
         _checkProposalThreshold(proposalId);
@@ -270,15 +288,20 @@ contract GovernanceFacet is ReentrancyGuard {
 
     /**
      * @notice Get vote status for a proposal
+     * @dev Resolves address to primary identity (EOA)
      */
     function getVoteStatus(
         string memory proposalId,
         address voter
     ) external view returns (bool hasVoted, bool support) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Resolve address to primary identity (EOA)
+        address resolvedVoter = LibAddressResolver.resolveToEOA(voter);
+
         return (
-            s.hasVotedOnProposal[proposalId][voter],
-            s.voterSupport[proposalId][voter]
+            s.hasVotedOnProposal[proposalId][resolvedVoter],
+            s.voterSupport[proposalId][resolvedVoter]
         );
     }
 
