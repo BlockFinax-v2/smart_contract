@@ -325,13 +325,13 @@ async function main() {
       console.log(`   🆕 ${facetName} - NEW (will be added)`);
       newFacets.push(facetName);
     } else {
-      // Check if facet is marked as updated OR if address in Diamond differs from deployment
-      const diamondFacet = currentFacets.find(cf => 
-        cf.functionSelectors.length > 0 && 
-        cf.facetAddress.toLowerCase() !== ethers.ZeroAddress.toLowerCase()
-      );
+      // Primary check: Compare content hashes to detect code changes
+      const currentHash = calculateContractHash(facetName);
+      const savedHashes = loadContractHashes();
+      const savedHash = savedHashes[facetName];
+      const hashChanged = !savedHash || savedHash !== currentHash;
       
-      // Get a sample selector from the deployed facet to find it in Diamond
+      // Secondary check: Verify deployment address matches Diamond
       const deployedFacetContract = await ethers.getContractAt(facetName, existingFacet.address);
       const deployedSelectors = getSelectors(deployedFacetContract);
       
@@ -347,14 +347,16 @@ async function main() {
         }
       }
       
-      // Check if updated flag is set OR if Diamond address differs from deployment
       const addressChanged = addressInDiamond.toLowerCase() !== existingFacet.address.toLowerCase();
       
-      if (existingFacet.updated || addressChanged) {
+      // Facet needs update if: code changed OR Diamond address differs from deployment
+      if (hashChanged || addressChanged) {
         console.log(`   ✨ ${facetName} - UPDATED (will be replaced)`);
+        if (hashChanged) {
+          console.log(`      Reason: Code changes detected`);
+        }
         if (addressChanged) {
-          console.log(`      Diamond: ${addressInDiamond}`);
-          console.log(`      Deployment: ${existingFacet.address}`);
+          console.log(`      Reason: Address mismatch (Diamond: ${addressInDiamond}, Deployment: ${existingFacet.address})`);
         }
         updatedFacets.push(facetName);
       } else {
@@ -415,7 +417,7 @@ async function main() {
     console.log(`   ➕ ADD ${facetName}: ${selectors.length} functions`);
   }
   
-  // 2. Prepare REPLACE operations for updated facets
+  // 2. Prepare REPLACE/ADD operations for updated facets
   for (const facetName of updatedFacets) {
     const existingFacet = deployment.facets.find(f => f.name === facetName);
     if (!existingFacet) {
@@ -428,16 +430,37 @@ async function main() {
     newDeployments.push(facetDeployment);
     
     const facet = await ethers.getContractAt(facetName, facetDeployment.address);
-    const selectors = getSelectors(facet);
+    const newSelectors = getSelectors(facet);
     
-    // Use REPLACE to swap the old implementation with the new one
-    facetCuts.push({
-      facetAddress: facetDeployment.address,
-      action: FacetCutAction.Replace,
-      functionSelectors: selectors
-    });
+    // Get existing selectors from Diamond for this facet
+    const existingFacetInfo = currentFacets.find(
+      f => f.facetAddress.toLowerCase() === existingFacet.address.toLowerCase()
+    );
+    const existingSelectors = existingFacetInfo?.functionSelectors || [];
     
-    console.log(`   ♻️  REPLACE ${facetName}: ${selectors.length} functions`);
+    // Separate selectors into existing (to REPLACE) and new (to ADD)
+    const selectorsToReplace = newSelectors.filter(s => existingSelectors.includes(s));
+    const selectorsToAdd = newSelectors.filter(s => !existingSelectors.includes(s));
+    
+    // Add REPLACE operation for existing functions
+    if (selectorsToReplace.length > 0) {
+      facetCuts.push({
+        facetAddress: facetDeployment.address,
+        action: FacetCutAction.Replace,
+        functionSelectors: selectorsToReplace
+      });
+      console.log(`   ♻️  REPLACE ${facetName}: ${selectorsToReplace.length} existing functions`);
+    }
+    
+    // Add ADD operation for new functions
+    if (selectorsToAdd.length > 0) {
+      facetCuts.push({
+        facetAddress: facetDeployment.address,
+        action: FacetCutAction.Add,
+        functionSelectors: selectorsToAdd
+      });
+      console.log(`   ➕ ADD ${facetName}: ${selectorsToAdd.length} new functions`);
+    }
   }
   
   // 3. Prepare REMOVE operations for removed facets

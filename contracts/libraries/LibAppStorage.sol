@@ -35,11 +35,12 @@ library LibAppStorage {
     }
 
     enum ProposalStatus {
-        Active,
-        Passed,
-        Failed,
-        Executed,
-        Cancelled
+        None, // 0 - Default/uninitialized state (security best practice)
+        Active, // 1 - Proposal is open for voting
+        Passed, // 2 - Proposal passed voting threshold
+        Failed, // 3 - Proposal failed voting threshold
+        Executed, // 4 - Proposal has been executed
+        Cancelled // 5 - Proposal was cancelled
     }
 
     struct TradeFinanceRequest {
@@ -56,11 +57,12 @@ library LibAppStorage {
     }
 
     enum RequestStatus {
-        Pending,
-        Approved,
-        Rejected,
-        Funded,
-        Completed
+        None, // 0 - Default/uninitialized state
+        Pending, // 1 - Request awaiting review
+        Approved, // 2 - Request approved
+        Rejected, // 3 - Request rejected
+        Funded, // 4 - Request funded
+        Completed // 5 - Request completed
     }
 
     struct Milestone {
@@ -73,9 +75,10 @@ library LibAppStorage {
     }
 
     enum MilestoneStatus {
-        Pending,
-        Completed,
-        Released
+        None, // 0 - Default/uninitialized state
+        Pending, // 1 - Milestone not yet completed
+        Completed, // 2 - Milestone completed, awaiting release
+        Released // 3 - Funds released for milestone
     }
 
     struct Escrow {
@@ -100,18 +103,19 @@ library LibAppStorage {
     }
 
     enum EscrowStatus {
-        Created,
-        Funded,
-        InProgress,
-        Completed,
-        Disputed,
-        Refunded
+        None, // 0 - Default/uninitialized state
+        Created, // 1 - Escrow created
+        Funded, // 2 - Escrow funded
+        InProgress, // 3 - Escrow in progress
+        Completed, // 4 - Escrow completed successfully
+        Disputed, // 5 - Escrow under dispute
+        Refunded // 6 - Escrow refunded
     }
     enum DisputeStatus {
-        None,
-        Raised,
-        InArbitration,
-        Resolved
+        None, // 0 - No dispute (default state is already safe)
+        Raised, // 1 - Dispute raised
+        InArbitration, // 2 - Under arbitration
+        Resolved // 3 - Dispute resolved
     }
 
     struct Invoice {
@@ -129,12 +133,13 @@ library LibAppStorage {
     }
 
     enum InvoiceStatus {
-        Draft,
-        Sent,
-        Viewed,
-        Paid,
-        Overdue,
-        Cancelled
+        None, // 0 - Default/uninitialized state
+        Draft, // 1 - Invoice in draft state
+        Sent, // 2 - Invoice sent to payer
+        Viewed, // 3 - Invoice viewed by payer
+        Paid, // 4 - Invoice paid
+        Overdue, // 5 - Invoice overdue
+        Cancelled // 6 - Invoice cancelled
     }
 
     struct DocumentRecord {
@@ -149,13 +154,14 @@ library LibAppStorage {
     }
 
     enum DocumentType {
-        Contract,
-        Invoice,
-        ProofOfDelivery,
-        LegalDocument,
-        Specification,
-        ComplianceCert,
-        Other
+        None, // 0 - Default/uninitialized state
+        Contract, // 1 - Contract document
+        Invoice, // 2 - Invoice document
+        ProofOfDelivery, // 3 - Proof of delivery
+        LegalDocument, // 4 - Legal document
+        Specification, // 5 - Technical specification
+        ComplianceCert, // 6 - Compliance certificate
+        Other // 7 - Other document type
     }
 
     struct AppStorage {

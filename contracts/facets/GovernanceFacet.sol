@@ -6,6 +6,7 @@ import "../libraries/LibDiamond.sol";
 import "../libraries/LibPausable.sol";
 import "../libraries/LibAddressResolver.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title GovernanceFacet
@@ -42,6 +43,8 @@ contract GovernanceFacet is ReentrancyGuard {
     error RevocationPeriodNotCompleted();
     error ZeroAddress();
     error InvalidPercentage();
+    error ExcessiveAmount();
+    error InvalidVotingPower();
     // DAO Proposal Events
     event ProposalCreated(
         string indexed proposalId,
@@ -70,6 +73,11 @@ contract GovernanceFacet is ReentrancyGuard {
         address indexed financier,
         uint256 executionTime
     );
+    event FinancierRevocationCancelled(
+        address indexed financier,
+        uint256 cancelTime
+    );
+    event FinancierStatusChanged(address indexed staker, bool isFinancier);
     event ProposalExecutionVoteCast(
         string indexed proposalId,
         address indexed financier
@@ -88,12 +96,35 @@ contract GovernanceFacet is ReentrancyGuard {
         // Resolve address to primary identity (EOA)
         address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
-        if (
-            !s.stakes[staker].active ||
-            !s.stakes[staker].isFinancier ||
-            s.stakes[staker].amount < s.minimumFinancierStake
-        ) {
+        // Check multi-token storage
+        uint256 totalUsdValue = 0;
+        bool hasFinancierStake = false;
+        bool hasRevocationPending = false;
+
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+
+            if (tokenStake.active && tokenStake.amount > 0) {
+                totalUsdValue += tokenStake.usdEquivalent;
+                if (tokenStake.isFinancier) {
+                    hasFinancierStake = true;
+                    // Check if revocation is pending
+                    if (tokenStake.revocationRequested) {
+                        hasRevocationPending = true;
+                    }
+                }
+            }
+        }
+
+        if (!hasFinancierStake || totalUsdValue < s.minimumFinancierStake) {
             revert NotFinancier();
+        }
+        // Block if revocation is pending - they should not participate while exiting
+        if (hasRevocationPending) {
+            revert("Cannot participate in governance during revocation period");
         }
         _;
     }
@@ -121,24 +152,6 @@ contract GovernanceFacet is ReentrancyGuard {
     }
 
     /**
-     * @notice Check if an address is a financier
-     * @param account Address to check
-     * @return bool True if address is a financier
-     * @dev Resolves address to primary identity (EOA)
-     */
-    function isFinancier(address account) external view returns (bool) {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-
-        // Resolve address to primary identity (EOA)
-        address resolvedAccount = LibAddressResolver.resolveToEOA(account);
-
-        return
-            s.stakes[resolvedAccount].active &&
-            s.stakes[resolvedAccount].isFinancier &&
-            s.stakes[resolvedAccount].amount >= s.minimumFinancierStake;
-    }
-
-    /**
      * @notice Create DAO proposal
      * @dev Uses address resolution: EOA is primary identity
      */
@@ -153,7 +166,10 @@ contract GovernanceFacet is ReentrancyGuard {
         // Resolve address to primary identity (EOA)
         address proposer = LibAddressResolver.resolveToEOA(msg.sender);
 
-        // Checks
+        // Security: Prevent zero address exploitation
+        if (proposer == address(0)) revert ZeroAddress();
+
+        // Checks - Input validation with bounds
         if (bytes(proposalId).length == 0) revert InvalidProposalId();
         if (bytes(proposalId).length > 64) revert InvalidProposalId(); // Reasonable limit
         if (bytes(category).length == 0) revert InvalidCategory();
@@ -164,11 +180,40 @@ contract GovernanceFacet is ReentrancyGuard {
         if (bytes(description).length > 1024) revert InvalidDescription(); // Reasonable limit
         if (s.proposals[proposalId].createdAt != 0)
             revert ProposalAlreadyExists();
-        if (s.stakes[proposer].amount < s.proposalThreshold)
-            revert InsufficientStake();
+
+        // Check multi-token storage for proposal threshold
+        uint256 totalStakedUsd = 0;
+        uint256 tokensLength = s.supportedStakingTokens.length;
+        for (uint256 i = 0; i < tokensLength; ) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[proposer][
+                tokenAddress
+            ];
+            if (tokenStake.active && tokenStake.amount > 0) {
+                // Security: Prevent overflow when summing stakes
+                unchecked {
+                    if (
+                        totalStakedUsd + tokenStake.usdEquivalent <
+                        totalStakedUsd
+                    ) {
+                        revert ExcessiveAmount();
+                    }
+                }
+                totalStakedUsd += tokenStake.usdEquivalent;
+            }
+
+            unchecked {
+                ++i; // Safe: bounded by tokensLength
+            }
+        }
+        if (totalStakedUsd < s.proposalThreshold) revert InsufficientStake();
 
         // Effects
+        // Security: Validate voting duration to prevent timestamp manipulation
+        if (s.votingDuration > 365 days) revert InvalidDuration();
         uint256 votingDeadline = block.timestamp + s.votingDuration;
+        // Security: Prevent deadline overflow
+        if (votingDeadline < block.timestamp) revert InvalidDuration();
 
         s.proposals[proposalId] = LibAppStorage.Proposal({
             proposalId: proposalId,
@@ -202,6 +247,7 @@ contract GovernanceFacet is ReentrancyGuard {
     /**
      * @notice Vote on DAO proposal
      * @dev Uses address resolution: EOA is primary identity
+     * Security: Implements checks-effects-interactions pattern
      */
     function voteOnProposal(
         string calldata proposalId,
@@ -213,6 +259,9 @@ contract GovernanceFacet is ReentrancyGuard {
         // Resolve address to primary identity (EOA)
         address voter = LibAddressResolver.resolveToEOA(msg.sender);
 
+        // Security: Prevent zero address exploitation
+        if (voter == address(0)) revert ZeroAddress();
+
         // Checks
         if (proposal.createdAt == 0) revert ProposalNotFound();
         if (proposal.status != LibAppStorage.ProposalStatus.Active)
@@ -221,7 +270,28 @@ contract GovernanceFacet is ReentrancyGuard {
             revert VotingPeriodEnded();
         if (s.hasVotedOnProposal[proposalId][voter]) revert AlreadyVoted();
 
-        uint256 votingPower = s.stakes[voter].votingPower;
+        // Calculate voting power from multi-token storage
+        uint256 votingPower = 0;
+        uint256 tokensLength = s.supportedStakingTokens.length;
+        for (uint256 i = 0; i < tokensLength; ) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[voter][
+                tokenAddress
+            ];
+            if (tokenStake.active && tokenStake.amount > 0) {
+                // Security: Prevent voting power overflow
+                unchecked {
+                    if (votingPower + tokenStake.votingPower < votingPower) {
+                        revert InvalidVotingPower();
+                    }
+                }
+                votingPower += tokenStake.votingPower;
+            }
+
+            unchecked {
+                ++i; // Safe: bounded by tokensLength
+            }
+        }
         if (votingPower == 0) revert InsufficientStake();
 
         // Effects
@@ -229,8 +299,21 @@ contract GovernanceFacet is ReentrancyGuard {
         s.voterSupport[proposalId][voter] = support;
 
         if (support) {
+            // Security: Prevent vote count overflow
+            unchecked {
+                if (proposal.votesFor + votingPower < proposal.votesFor) {
+                    revert InvalidVotingPower();
+                }
+            }
             proposal.votesFor += votingPower;
         } else {
+            unchecked {
+                if (
+                    proposal.votesAgainst + votingPower < proposal.votesAgainst
+                ) {
+                    revert InvalidVotingPower();
+                }
+            }
             proposal.votesAgainst += votingPower;
         }
 
@@ -727,6 +810,67 @@ contract GovernanceFacet is ReentrancyGuard {
     }
 
     /**
+     * @notice Recalculate voting powers for all stakers (imported from LiquidityPoolFacet)
+     * @dev Must be called after financier status changes
+     */
+    function _recalculateAllVotingPowers() internal {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        if (s.totalStaked == 0) return;
+
+        uint256 stakersLength = s.stakers.length;
+        if (stakersLength > 10000) return;
+
+        for (uint256 i = 0; i < stakersLength; ) {
+            address staker = s.stakers[i];
+            uint256 totalUserUsd = 0;
+
+            uint256 tokensLength = s.supportedStakingTokens.length;
+            for (uint256 j = 0; j < tokensLength; ) {
+                address token = s.supportedStakingTokens[j];
+                if (s.stakesPerToken[staker][token].active) {
+                    // Zero out voting power if revocation is pending
+                    if (s.stakesPerToken[staker][token].revocationRequested) {
+                        s.stakesPerToken[staker][token].votingPower = 0;
+                    } else {
+                        totalUserUsd += s
+                            .stakesPerToken[staker][token]
+                            .usdEquivalent;
+
+                        if (totalUserUsd > type(uint256).max / 1e18) {
+                            s.stakesPerToken[staker][token].votingPower = 1e18;
+                        } else {
+                            s.stakesPerToken[staker][token].votingPower =
+                                (s.stakesPerToken[staker][token].usdEquivalent *
+                                    1e18) /
+                                s.totalStaked;
+                        }
+                    }
+                }
+
+                unchecked {
+                    ++j;
+                }
+            }
+
+            if (s.stakes[staker].active && s.stakes[staker].amount > 0) {
+                totalUserUsd += s.stakes[staker].amount;
+                if (totalUserUsd > type(uint256).max / 1e18) {
+                    s.stakes[staker].votingPower = 1e18;
+                } else {
+                    s.stakes[staker].votingPower =
+                        (s.stakes[staker].amount * 1e18) /
+                        s.totalStaked;
+                }
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    /**
      * @notice Check proposal voting threshold and update status
      */
     function _checkProposalThreshold(string memory proposalId) internal {
@@ -774,19 +918,94 @@ contract GovernanceFacet is ReentrancyGuard {
      */
     function requestFinancierRevocation() external nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
-        // Checks
-        if (s.stakes[msg.sender].amount < s.minimumFinancierStake)
+        // Check multi-token storage for financier status
+        uint256 totalUsdValue = 0;
+        bool hasFinancierStake = false;
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+            if (tokenStake.active && tokenStake.amount > 0) {
+                totalUsdValue += tokenStake.usdEquivalent;
+                if (tokenStake.isFinancier) {
+                    hasFinancierStake = true;
+                    // Check revocation status
+                    if (tokenStake.revocationRequested)
+                        revert RevocationAlreadyRequested();
+                }
+            }
+        }
+
+        if (!hasFinancierStake || totalUsdValue < s.minimumFinancierStake)
             revert NotAFinancier();
-        if (s.stakes[msg.sender].revocationRequested)
-            revert RevocationAlreadyRequested();
 
-        // Effects
-        s.stakes[msg.sender].revocationRequested = true;
-        s.stakes[msg.sender].revocationRequestTime = block.timestamp;
+        // Effects - mark all financier stakes as revocation requested
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+            if (tokenStake.active && tokenStake.isFinancier) {
+                tokenStake.revocationRequested = true;
+                tokenStake.revocationRequestTime = block.timestamp;
+            }
+        }
+
+        // Recalculate voting powers immediately to prevent stale voting power during revocation period
+        _recalculateAllVotingPowers();
 
         // Interactions (events)
         emit FinancierRevocationRequested(msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Cancel financier revocation request
+     * @dev Restores full financier rights and voting power
+     * If they request revocation again, the 30-day period starts fresh
+     */
+    function cancelFinancierRevocation() external nonReentrant {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
+
+        // Checks - verify revocation was requested
+        bool hasRevocationRequest = false;
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+            if (
+                tokenStake.active &&
+                tokenStake.isFinancier &&
+                tokenStake.revocationRequested
+            ) {
+                hasRevocationRequest = true;
+                break;
+            }
+        }
+
+        if (!hasRevocationRequest) revert NoRevocationRequested();
+
+        // Effects - clear revocation flags (keep isFinancier = true)
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+            if (tokenStake.active && tokenStake.isFinancier) {
+                tokenStake.revocationRequested = false;
+                tokenStake.revocationRequestTime = 0;
+            }
+        }
+
+        // Recalculate voting powers to restore full voting power
+        _recalculateAllVotingPowers();
+
+        // Interactions (events)
+        emit FinancierRevocationCancelled(msg.sender, block.timestamp);
     }
 
     /**
@@ -795,23 +1014,53 @@ contract GovernanceFacet is ReentrancyGuard {
 
     function executeFinancierRevocation() external nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        address staker = LibAddressResolver.resolveToEOA(msg.sender);
 
-        // Checks
-        if (!s.stakes[msg.sender].revocationRequested)
-            revert NoRevocationRequested();
-        if (
-            block.timestamp <
-            s.stakes[msg.sender].revocationRequestTime + s.revocationPeriod
-        ) {
+        // Checks - verify revocation was requested and period completed
+        bool hasRevocationRequest = false;
+        uint256 earliestRequestTime = type(uint256).max;
+
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+            if (
+                tokenStake.active &&
+                tokenStake.isFinancier &&
+                tokenStake.revocationRequested
+            ) {
+                hasRevocationRequest = true;
+                if (tokenStake.revocationRequestTime < earliestRequestTime) {
+                    earliestRequestTime = tokenStake.revocationRequestTime;
+                }
+            }
+        }
+
+        if (!hasRevocationRequest) revert NoRevocationRequested();
+        if (block.timestamp < earliestRequestTime + s.revocationPeriod) {
             revert RevocationPeriodNotCompleted();
         }
 
-        // Effects
-        s.stakes[msg.sender].revocationRequested = false;
-        s.stakes[msg.sender].revocationRequestTime = 0;
+        // Effects - revoke financier status and clear revocation flags
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[staker][
+                tokenAddress
+            ];
+            if (tokenStake.active && tokenStake.isFinancier) {
+                tokenStake.isFinancier = false;
+                tokenStake.revocationRequested = false;
+                tokenStake.revocationRequestTime = 0;
+            }
+        }
+
+        // Recalculate voting powers after revocation
+        _recalculateAllVotingPowers();
 
         // Interactions (events)
         emit FinancierRevocationExecuted(msg.sender, block.timestamp);
+        emit FinancierStatusChanged(staker, false);
     }
 
     /**
@@ -821,9 +1070,26 @@ contract GovernanceFacet is ReentrancyGuard {
         address user
     ) external view returns (bool) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        address resolvedUser = LibAddressResolver.resolveToEOA(user);
 
-        // Financiers cannot use emergency withdrawal
-        if (s.stakes[user].amount >= s.minimumFinancierStake) {
+        // Check multi-token storage - financiers cannot use emergency withdrawal
+        uint256 totalUsdValue = 0;
+        bool hasFinancierStake = false;
+
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address tokenAddress = s.supportedStakingTokens[i];
+            LibAppStorage.Stake storage tokenStake = s.stakesPerToken[
+                resolvedUser
+            ][tokenAddress];
+            if (tokenStake.active && tokenStake.amount > 0) {
+                totalUsdValue += tokenStake.usdEquivalent;
+                if (tokenStake.isFinancier) {
+                    hasFinancierStake = true;
+                }
+            }
+        }
+
+        if (hasFinancierStake && totalUsdValue >= s.minimumFinancierStake) {
             return false;
         }
 
@@ -862,6 +1128,7 @@ contract GovernanceFacet is ReentrancyGuard {
 
     /**
      * @notice Add a new supported staking token (OWNER ONLY)
+     * @dev Only supports tokens with 6-18 decimals (standard ERC20 range)
      */
     function addSupportedStakingToken(address tokenAddress) external {
         LibDiamond.enforceIsContractOwner();
@@ -873,6 +1140,16 @@ contract GovernanceFacet is ReentrancyGuard {
             "Token already supported"
         );
 
+        // CRITICAL: Validate token decimals to prevent decimal conversion underflow
+        // Most stablecoins use 6 or 18 decimals, we support 6-18 range
+        try IERC20Metadata(tokenAddress).decimals() returns (uint8 decimals) {
+            require(
+                decimals >= 6 && decimals <= 18,
+                "Token decimals must be between 6 and 18"
+            );
+        } catch {
+            revert("Token must implement decimals()");
+        }
         s.supportedStakingTokens.push(tokenAddress);
         s.isStakingTokenSupported[tokenAddress] = true;
 
@@ -938,5 +1215,47 @@ contract GovernanceFacet is ReentrancyGuard {
     ) external view returns (uint256) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         return s.totalStakedPerToken[tokenAddress];
+    }
+
+    /**
+     * @notice Get total USD value staked across all supported tokens
+     * @dev Returns the sum of all USD equivalents across all tokens
+     * @return Total USD value with 18 decimals precision (matches s.totalStaked)
+     */
+    function getTotalStakedUSD() external view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.totalStaked;
+    }
+
+    /**
+     * @notice Get detailed stats for all supported staking tokens
+     * @dev Returns arrays of token addresses, their staked amounts, and count
+     * @return tokens Array of supported token addresses
+     * @return stakedAmounts Array of total staked amounts per token (in token's decimals)
+     * @return totalUsdValue Total USD value across all tokens (18 decimals)
+     * @return tokenCount Number of supported tokens
+     */
+    function getAllTokenStats()
+        external
+        view
+        returns (
+            address[] memory tokens,
+            uint256[] memory stakedAmounts,
+            uint256 totalUsdValue,
+            uint256 tokenCount
+        )
+    {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        tokenCount = s.supportedStakingTokens.length;
+        tokens = new address[](tokenCount);
+        stakedAmounts = new uint256[](tokenCount);
+
+        for (uint256 i = 0; i < tokenCount; i++) {
+            tokens[i] = s.supportedStakingTokens[i];
+            stakedAmounts[i] = s.totalStakedPerToken[tokens[i]];
+        }
+
+        totalUsdValue = s.totalStaked;
     }
 }
