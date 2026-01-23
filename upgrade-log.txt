@@ -1,0 +1,270 @@
+🚀 Starting Diamond Upgrade Across All Networks
+================================================
+
+
+\033[1;33m┌─────────────────────────────────────────┐\033[0m
+\033[1;33m│ Upgrading Network: liskSepolia\033[0m
+\033[1;33m└─────────────────────────────────────────┘\033[0m
+
+WARNING: You are currently using Node.js v23.11.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+[dotenv@17.2.3] injecting env (8) from .env -- tip: 🔄 add secrets lifecycle management: https://dotenvx.com/ops
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+
+🔄 Starting Diamond upgrade on liskSepolia...
+
+📋 Upgrade Info:
+   Network: liskSepolia
+   Chain ID: 4202
+   Deployer: 0xf070F568c125b2740391136662Fc600A2A29D2A6
+   Balance: 0.228780411484942545 ETH
+
+📍 Diamond Address: 0xE133CD2eE4d835AC202942Baff2B1D6d47862d34
+
+🔍 Checking for updated facets...
+   Reading Diamond state...
+   ✓ AddressLinkingFacet - Up to date
+   ✓ DiamondLoupeFacet - Up to date
+   ✨ GovernanceFacet - UPDATED (will be replaced)
+   ✓ LiquidityPoolFacet - Up to date
+   ✓ OwnershipFacet - Up to date
+
+🔍 Checking for removed facets...
+   Deployed facets: DiamondLoupeFacet, GovernanceFacet, LiquidityPoolFacet, OwnershipFacet, AddressLinkingFacet
+   Current facets in code: AddressLinkingFacet, DiamondLoupeFacet, GovernanceFacet, LiquidityPoolFacet, OwnershipFacet
+
+📊 Upgrade Summary:
+   New facets: 0
+   Updated facets: 1
+   Removed facets: 0
+
+📦 Deploying GovernanceFacet...
+✅ GovernanceFacet deployed at: 0xd26CDF1b3E74758c1B30fA7E487DAb2458270ffe
+   ♻️  REPLACE GovernanceFacet: 35 existing functions
+   ➕ ADD GovernanceFacet: 2 new functions
+
+⚙️  Executing Diamond upgrade...
+   Total operations: 2
+   Transaction sent: 0x2c548f84884564bfa6fa4f8096f09291c7965f3b53fd73da03691fb8a027fd83
+   ✅ Upgrade successful! Gas used: 619701
+
+🔍 Verifying new facets...
+
+🔍 Verifying contract at 0xd26CDF1b3E74758c1B30fA7E487DAb2458270ffe on liskSepolia...
+WARNING: You are currently using Node.js v23.11.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  specify custom .env file path with { path: '/custom/path/.env' }
+[INFO] Sourcify Verification Skipped: Sourcify verification is currently disabled. To enable it, add the following entry to your Hardhat configuration:
+
+sourcify: {
+  enabled: true
+}
+
+Or set 'enabled' to false to hide this message.
+
+For more information, visit https://hardhat.org/hardhat-runner/plugins/nomicfoundation-hardhat-verify#verifying-on-sourcify
+[WARNING] Network and explorer-specific api keys are deprecated in favour of the new Etherscan v2 api. Support for v1 is expected to end by May 31st, 2025. To migrate, please specify a single Etherscan.io api key the apiKey config value.
+Successfully submitted source code for contract
+contracts/facets/GovernanceFacet.sol:GovernanceFacet at 0xd26CDF1b3E74758c1B30fA7E487DAb2458270ffe
+for verification on the block explorer. Waiting for verification result...
+
+Successfully verified contract GovernanceFacet on the block explorer.
+https://sepolia-blockscout.lisk.com/address/0xd26CDF1b3E74758c1B30fA7E487DAb2458270ffe#code
+
+✅ Contract verified successfully!
+
+💾 Updating deployment records...
+
+✅ Verifying Diamond state...
+   Total facets after upgrade: 6
+
+
+🎉 Upgrade completed successfully!
+
+📋 Final State:
+   Diamond: 0xE133CD2eE4d835AC202942Baff2B1D6d47862d34
+   Total facets: 6
+
+   Active Facets:
+   ✓ ✅ DiamondCutFacet: 0xE2e99706D46937869EC329E6B85a1E18c0FaC8eE (1 functions)
+   ✓ ✅ DiamondLoupeFacet: 0x0c3677736296c42A5151FeD983fcE68AC84e6B8A (5 functions)
+   🆕 ✅ GovernanceFacet: 0xd26CDF1b3E74758c1B30fA7E487DAb2458270ffe (37 functions)
+   ✓ ✅ LiquidityPoolFacet: 0x49e94AAe64AA7b56A8Ab869C908aD7f66151CBA5 (22 functions)
+   ✓ ✅ OwnershipFacet: 0xF5eb95a1488958feA4243ff7b9415A9aA863Fc3E (2 functions)
+   ✓ ✅ AddressLinkingFacet: 0xB95985Ce0DB7c224eDf78E23A51267Cacb866563 (7 functions)
+
+💾 Deployment info saved to: /home/bilal/bilal_projects/BlockFinax/smart_contract/deployments/deployments.json
+
+✨ Your Diamond is now up to date!
+
+\033[0;32m✅ liskSepolia upgrade successful!\033[0m
+
+\033[1;33m┌─────────────────────────────────────────┐\033[0m
+\033[1;33m│ Upgrading Network: baseSepolia\033[0m
+\033[1;33m└─────────────────────────────────────────┘\033[0m
+
+WARNING: You are currently using Node.js v23.11.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+[dotenv@17.2.3] injecting env (8) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+
+🔄 Starting Diamond upgrade on baseSepolia...
+
+📋 Upgrade Info:
+   Network: baseSepolia
+   Chain ID: 84532
+   Deployer: 0xf070F568c125b2740391136662Fc600A2A29D2A6
+   Balance: 0.005056539675022879 ETH
+
+📍 Diamond Address: 0xb899A968e785dD721dbc40e71e2FAEd7B2d84711
+
+🔍 Checking for updated facets...
+   Reading Diamond state...
+   ✓ AddressLinkingFacet - Up to date
+   ✓ DiamondLoupeFacet - Up to date
+   ✨ GovernanceFacet - UPDATED (will be replaced)
+   ✓ LiquidityPoolFacet - Up to date
+   ✓ OwnershipFacet - Up to date
+
+🔍 Checking for removed facets...
+   Deployed facets: DiamondLoupeFacet, GovernanceFacet, LiquidityPoolFacet, OwnershipFacet, AddressLinkingFacet
+   Current facets in code: AddressLinkingFacet, DiamondLoupeFacet, GovernanceFacet, LiquidityPoolFacet, OwnershipFacet
+
+📊 Upgrade Summary:
+   New facets: 0
+   Updated facets: 1
+   Removed facets: 0
+
+📦 Deploying GovernanceFacet...
+✅ GovernanceFacet deployed at: 0x8357D6Fba335371a09F5C263a90962F8e9de9D23
+   ♻️  REPLACE GovernanceFacet: 35 existing functions
+   ➕ ADD GovernanceFacet: 2 new functions
+
+⚙️  Executing Diamond upgrade...
+   Total operations: 2
+   Transaction sent: 0x1116007ab888c3b6fcce77d40663509a23f4299f00a55cc489fce675ca581323
+   ✅ Upgrade successful! Gas used: 619701
+
+🔍 Verifying new facets...
+
+🔍 Verifying contract at 0x8357D6Fba335371a09F5C263a90962F8e9de9D23 on baseSepolia...
+WARNING: You are currently using Node.js v23.11.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+[INFO] Sourcify Verification Skipped: Sourcify verification is currently disabled. To enable it, add the following entry to your Hardhat configuration:
+
+sourcify: {
+  enabled: true
+}
+
+Or set 'enabled' to false to hide this message.
+
+For more information, visit https://hardhat.org/hardhat-runner/plugins/nomicfoundation-hardhat-verify#verifying-on-sourcify
+[WARNING] Network and explorer-specific api keys are deprecated in favour of the new Etherscan v2 api. Support for v1 is expected to end by May 31st, 2025. To migrate, please specify a single Etherscan.io api key the apiKey config value.
+hardhat-verify found one or more errors during the verification process:
+
+Etherscan:
+The block explorer's API responded that the contract contracts/facets/GovernanceFacet.sol:GovernanceFacet at 0x8357D6Fba335371a09F5C263a90962F8e9de9D23 is already verified.
+This can happen if you used the '--force' flag. However, re-verification of contracts might not be supported
+by the explorer (e.g., Etherscan), or the contract may have already been verified with a full match.
+
+
+⚠️  Verification failed: Command failed: npx hardhat verify --network baseSepolia 0x8357D6Fba335371a09F5C263a90962F8e9de9D23 --contract contracts/facets/GovernanceFacet.sol:GovernanceFacet
+
+💾 Updating deployment records...
+
+✅ Verifying Diamond state...
+   Total facets after upgrade: 6
+
+
+🎉 Upgrade completed successfully!
+
+📋 Final State:
+   Diamond: 0xb899A968e785dD721dbc40e71e2FAEd7B2d84711
+   Total facets: 6
+
+   Active Facets:
+   ✓ ✅ DiamondCutFacet: 0x34a15ca403360F2F7b3389e3A70Fb8958aB518e6 (1 functions)
+   ✓ ✅ DiamondLoupeFacet: 0x80dbBdaf6d9F582A9730292AD2112D42b8533ce8 (5 functions)
+   🆕 ⚠️ GovernanceFacet: 0x8357D6Fba335371a09F5C263a90962F8e9de9D23 (37 functions)
+   ✓ ⚠️ LiquidityPoolFacet: 0x0f7E33129a6f420963221921817790FC83aF5714 (22 functions)
+   ✓ ✅ OwnershipFacet: 0x8aB4730fBD8E702c147A925890102D4A7d476459 (2 functions)
+   ✓ ⚠️ AddressLinkingFacet: 0xe76A4A9f30CA27306428d68Cac03d33a25475C74 (7 functions)
+
+💾 Deployment info saved to: /home/bilal/bilal_projects/BlockFinax/smart_contract/deployments/deployments.json
+
+✨ Your Diamond is now up to date!
+
+\033[0;32m✅ baseSepolia upgrade successful!\033[0m
+
+\033[1;33m┌─────────────────────────────────────────┐\033[0m
+\033[1;33m│ Upgrading Network: sepolia\033[0m
+\033[1;33m└─────────────────────────────────────────┘\033[0m
+
+WARNING: You are currently using Node.js v23.11.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+[dotenv@17.2.3] injecting env (8) from .env -- tip: 🔐 prevent building .env in docker: https://dotenvx.com/prebuild
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+
+🔄 Starting Diamond upgrade on sepolia...
+
+📋 Upgrade Info:
+   Network: sepolia
+   Chain ID: 11155111
+   Deployer: 0xf070F568c125b2740391136662Fc600A2A29D2A6
+   Balance: 0.002962089220189049 ETH
+
+📍 Diamond Address: 0xA4d19a7b133d2A9fAce5b1ad407cA7b9D4Ee9284
+
+🔍 Checking for updated facets...
+   Reading Diamond state...
+   ✨ AddressLinkingFacet - UPDATED (will be replaced)
+   ✨ DiamondLoupeFacet - UPDATED (will be replaced)
+   ✨ GovernanceFacet - UPDATED (will be replaced)
+   ✨ LiquidityPoolFacet - UPDATED (will be replaced)
+   ✨ OwnershipFacet - UPDATED (will be replaced)
+
+🔍 Checking for removed facets...
+   Deployed facets: AddressLinkingFacet, DiamondLoupeFacet, GovernanceFacet, LiquidityPoolFacet, OwnershipFacet
+   Current facets in code: AddressLinkingFacet, DiamondLoupeFacet, GovernanceFacet, LiquidityPoolFacet, OwnershipFacet
+
+📊 Upgrade Summary:
+   New facets: 0
+   Updated facets: 5
+   Removed facets: 0
+
+📦 Deploying AddressLinkingFacet...
+✅ AddressLinkingFacet deployed at: 0x96a6e5A74c6EDbBfB0e32C2A0521cF2023d6d4d0
+   ♻️  REPLACE AddressLinkingFacet: 7 existing functions
+
+📦 Deploying DiamondLoupeFacet...
+✅ DiamondLoupeFacet deployed at: 0x149B424900AB4283E9F9Ea137943dCE0f83D9385
+   ♻️  REPLACE DiamondLoupeFacet: 5 existing functions
+
+📦 Deploying GovernanceFacet...
+ProviderError: insufficient funds for gas * price + value: balance 935773937146079, tx cost 7929119248170210, overshot 6993345311024131
+    at HttpProvider.request (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/hardhat/src/internal/core/providers/http.ts:116:21)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async HardhatEthersSigner.sendTransaction (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:181:18)
+    at async ContractFactory.deploy (/home/bilal/bilal_projects/BlockFinax/smart_contract/node_modules/ethers/src.ts/contract/factory.ts:111:24)
+    at async deployFacet (/home/bilal/bilal_projects/BlockFinax/smart_contract/scripts/upgrade.ts:256:17)
+    at async main (/home/bilal/bilal_projects/BlockFinax/smart_contract/scripts/upgrade.ts:427:29)
+
+\033[0;31m❌ sepolia upgrade failed!\033[0m
+
+================================================
+📊 Upgrade Summary
+================================================
+
+\033[0;32m✅ Successfully upgraded:\033[0m
+   - liskSepolia
+   - baseSepolia
+
+\033[0;31m❌ Failed to upgrade:\033[0m
+   - sepolia
+
