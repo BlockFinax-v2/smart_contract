@@ -1106,7 +1106,8 @@ contract GovernanceFacet is ReentrancyGuard {
             uint256 minimumFinancierStake,
             uint256 votingDuration,
             uint256 approvalThreshold,
-            uint256 revocationPeriod
+            uint256 revocationPeriod,
+            uint256 proposalThreshold
         )
     {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
@@ -1115,7 +1116,8 @@ contract GovernanceFacet is ReentrancyGuard {
             s.minimumFinancierStake,
             s.votingDuration,
             s.approvalThreshold,
-            s.revocationPeriod
+            s.revocationPeriod,
+            s.proposalThreshold
         );
     }
 

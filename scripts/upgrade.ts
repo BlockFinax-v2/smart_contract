@@ -432,11 +432,19 @@ async function main() {
     const facet = await ethers.getContractAt(facetName, facetDeployment.address);
     const newSelectors = getSelectors(facet);
     
-    // Get existing selectors from Diamond for this facet
-    const existingFacetInfo = currentFacets.find(
-      f => f.facetAddress.toLowerCase() === existingFacet.address.toLowerCase()
-    );
-    const existingSelectors = existingFacetInfo?.functionSelectors || [];
+    // Get existing selectors from Diamond for this facet by matching function selectors
+    // We can't rely on address matching since the Diamond may have a different address than deployment.json
+    let existingSelectors: string[] = [];
+    if (newSelectors.length > 0) {
+      // Find which facet in Diamond has these selectors by checking a sample selector
+      const sampleSelector = newSelectors[0];
+      for (const cf of currentFacets) {
+        if (cf.functionSelectors.includes(sampleSelector)) {
+          existingSelectors = cf.functionSelectors;
+          break;
+        }
+      }
+    }
     
     // Separate selectors into existing (to REPLACE) and new (to ADD)
     const selectorsToReplace = newSelectors.filter(s => existingSelectors.includes(s));
