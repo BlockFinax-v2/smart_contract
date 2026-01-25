@@ -68,7 +68,7 @@ contract LiquidityPoolFacet is ReentrancyGuard {
     event Unpaused(address account);
 
     // Constants for precision and calculations
-    uint256 private constant PRECISION = 1e18;
+    uint256 private constant PRECISION = 1e6; // 6 decimals to match USDC/USDT
     uint256 private constant SECONDS_PER_YEAR = 365 days;
     uint256 private constant PERCENTAGE_BASE = 100;
     uint256 private constant MIN_APR = 10; // 1% minimum APR
@@ -983,13 +983,10 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         userStake.pendingRewards = 0;
         userStake.rewardDebt = 0;
 
-        // Convert rewards from 18 decimals to token decimals
-        uint8 tokenDecimals = IERC20Metadata(tokenAddress).decimals();
-        uint256 rewardsInTokenDecimals = rewards / (10 ** (18 - tokenDecimals));
+        // Rewards are already in 6 decimals (matching USDC/USDT)
+        IERC20(tokenAddress).safeTransfer(msg.sender, rewards);
 
-        IERC20(tokenAddress).safeTransfer(msg.sender, rewardsInTokenDecimals);
-
-        emit RewardsClaimed(msg.sender, rewardsInTokenDecimals);
+        emit RewardsClaimed(msg.sender, rewards);
     }
 
     // ========================================
@@ -1015,6 +1012,7 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         uint256 timeElapsed = block.timestamp - user.lastRewardTimestamp;
 
         if (timeElapsed > 0 && s.currentRewardRate > 0) {
+            // All values in 6 decimals: usdEquivalent, annualRate, rewards
             uint256 annualRate = (s.currentRewardRate * PRECISION) /
                 PERCENTAGE_BASE;
             uint256 rewardPerSecond = (user.usdEquivalent * annualRate) /
@@ -1045,6 +1043,7 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         uint256 timeElapsed = block.timestamp - user.lastRewardTimestamp;
 
         if (timeElapsed > 0 && s.currentRewardRate > 0) {
+            // All values in 6 decimals: usdEquivalent, annualRate, rewards
             uint256 annualRate = (s.currentRewardRate * PRECISION) /
                 PERCENTAGE_BASE;
             uint256 rewardPerSecond = (user.usdEquivalent * annualRate) /
@@ -1208,15 +1207,15 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         uint256 newRate = s.initialApr;
 
-        // Apply reduction based on total staked (per 1000 tokens staked)
+        // Apply reduction based on total staked (per 1000 USD staked, in 6 decimals)
         // Security: Prevent division manipulation and ensure proper rounding
         if (
             s.totalStaked >= 1000 * PRECISION && s.aprReductionPerThousand > 0
         ) {
             // Use unchecked for gas optimization where overflow is impossible
             unchecked {
-                uint256 thousandTokens = s.totalStaked / (1000 * PRECISION);
-                uint256 reduction = thousandTokens * s.aprReductionPerThousand;
+                uint256 thousandUSD = s.totalStaked / (1000 * PRECISION);
+                uint256 reduction = thousandUSD * s.aprReductionPerThousand;
 
                 // Ensure we don't underflow and maintain minimum APR
                 newRate = reduction >= s.initialApr

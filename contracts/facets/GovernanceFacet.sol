@@ -837,12 +837,12 @@ contract GovernanceFacet is ReentrancyGuard {
                             .stakesPerToken[staker][token]
                             .usdEquivalent;
 
-                        if (totalUserUsd > type(uint256).max / 1e18) {
-                            s.stakesPerToken[staker][token].votingPower = 1e18;
+                        if (totalUserUsd > type(uint256).max / 1e6) {
+                            s.stakesPerToken[staker][token].votingPower = 1e6;
                         } else {
                             s.stakesPerToken[staker][token].votingPower =
                                 (s.stakesPerToken[staker][token].usdEquivalent *
-                                    1e18) /
+                                    1e6) /
                                 s.totalStaked;
                         }
                     }
@@ -855,11 +855,11 @@ contract GovernanceFacet is ReentrancyGuard {
 
             if (s.stakes[staker].active && s.stakes[staker].amount > 0) {
                 totalUserUsd += s.stakes[staker].amount;
-                if (totalUserUsd > type(uint256).max / 1e18) {
-                    s.stakes[staker].votingPower = 1e18;
+                if (totalUserUsd > type(uint256).max / 1e6) {
+                    s.stakes[staker].votingPower = 1e6;
                 } else {
                     s.stakes[staker].votingPower =
-                        (s.stakes[staker].amount * 1e18) /
+                        (s.stakes[staker].amount * 1e6) /
                         s.totalStaked;
                 }
             }
@@ -899,8 +899,8 @@ contract GovernanceFacet is ReentrancyGuard {
             }
         }
         // If voting period not ended but we have enough votes, we can still determine outcome
-        else if (totalVotes >= 1e18) {
-            // Minimum participation threshold
+        else if (totalVotes >= 1e6) {
+            // Minimum participation threshold (1 full voting power unit)
             uint256 approvalPercentage = (proposal.votesFor * 100) / totalVotes;
 
             if (approvalPercentage >= s.approvalThreshold) {
