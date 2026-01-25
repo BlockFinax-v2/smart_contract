@@ -407,6 +407,7 @@ contract LiquidityPoolFacet is ReentrancyGuard {
 
     /**
      * @notice Get pool statistics
+     * @dev Returns aggregate stats across all supported tokens
      */
     function getPoolStats()
         external
@@ -419,10 +420,27 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         )
     {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Calculate total contract balance across all supported tokens
+        uint256 totalBalance = 0;
+        for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
+            address token = s.supportedStakingTokens[i];
+            if (token != address(0)) {
+                try IERC20(token).balanceOf(address(this)) returns (
+                    uint256 balance
+                ) {
+                    totalBalance += balance;
+                } catch {
+                    // Skip tokens that fail to return balance
+                    continue;
+                }
+            }
+        }
+
         return (
             s.totalStaked,
             s.totalLiquidityProviders,
-            IERC20(s.usdcToken).balanceOf(address(this)),
+            totalBalance,
             s.currentRewardRate
         );
     }
