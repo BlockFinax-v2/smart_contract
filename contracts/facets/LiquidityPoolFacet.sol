@@ -562,14 +562,17 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             ) revert ExcessiveAmount();
         }
 
+        // CRITICAL: Resolve address - get EOA if caller is Smart Account, otherwise use msg.sender
+        address actualUser = LibAddressResolver.resolveToEOA(msg.sender);
+
         // CRITICAL FIX: Check if user is already a financier in ANY token
         // If they are, enforce financier lock duration instead
         bool isExistingFinancier = false;
         for (uint256 i = 0; i < s.supportedStakingTokens.length; i++) {
             address tokenAddr = s.supportedStakingTokens[i];
             if (
-                s.stakesPerToken[msg.sender][tokenAddr].active &&
-                s.stakesPerToken[msg.sender][tokenAddr].isFinancier
+                s.stakesPerToken[actualUser][tokenAddr].active &&
+                s.stakesPerToken[actualUser][tokenAddr].isFinancier
             ) {
                 isExistingFinancier = true;
                 break;
@@ -591,45 +594,46 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             revert InvalidDeadline();
 
         IERC20 token = IERC20(tokenAddress);
-        if (token.balanceOf(msg.sender) < amount) revert InsufficientBalance();
-        if (token.allowance(msg.sender, address(this)) < amount)
+        // CRITICAL: Check balance and allowance from actualUser (EOA has the funds)
+        if (token.balanceOf(actualUser) < amount) revert InsufficientBalance();
+        if (token.allowance(actualUser, address(this)) < amount)
             revert InsufficientAllowance();
 
         // Update rewards for this specific token stake
-        _updateTokenRewards(msg.sender, tokenAddress);
+        _updateTokenRewards(actualUser, tokenAddress);
 
-        // Transfer tokens
-        token.safeTransferFrom(msg.sender, address(this), amount);
+        // CRITICAL: Transfer tokens from actualUser (EOA), not msg.sender (Smart Account)
+        token.safeTransferFrom(actualUser, address(this), amount);
 
         // Track user if first stake
-        if (s.stakesPerToken[msg.sender][tokenAddress].amount == 0) {
-            if (!_isExistingStaker(msg.sender)) {
-                s.stakers.push(msg.sender);
+        if (s.stakesPerToken[actualUser][tokenAddress].amount == 0) {
+            if (!_isExistingStaker(actualUser)) {
+                s.stakers.push(actualUser);
                 s.totalLiquidityProviders++;
             }
         }
 
-        // Update stake record for this token
+        // Update stake record for this token - credit to actualUser (EOA)
         // Note: isExistingFinancier was already checked above for deadline validation
-        s.stakesPerToken[msg.sender][tokenAddress].amount += amount;
-        s.stakesPerToken[msg.sender][tokenAddress].timestamp = block.timestamp;
-        s.stakesPerToken[msg.sender][tokenAddress].lastRewardTimestamp = block
+        s.stakesPerToken[actualUser][tokenAddress].amount += amount;
+        s.stakesPerToken[actualUser][tokenAddress].timestamp = block.timestamp;
+        s.stakesPerToken[actualUser][tokenAddress].lastRewardTimestamp = block
             .timestamp;
         // CRITICAL: Use max of existing and new deadline to prevent lock period reduction
         if (
-            s.stakesPerToken[msg.sender][tokenAddress].deadline < customDeadline
+            s.stakesPerToken[actualUser][tokenAddress].deadline < customDeadline
         ) {
             s
-                .stakesPerToken[msg.sender][tokenAddress]
+                .stakesPerToken[actualUser][tokenAddress]
                 .deadline = customDeadline;
         }
-        s.stakesPerToken[msg.sender][tokenAddress].stakingToken = tokenAddress;
+        s.stakesPerToken[actualUser][tokenAddress].stakingToken = tokenAddress;
         s
-            .stakesPerToken[msg.sender][tokenAddress]
+            .stakesPerToken[actualUser][tokenAddress]
             .usdEquivalent += usdEquivalent;
-        s.stakesPerToken[msg.sender][tokenAddress].active = true;
+        s.stakesPerToken[actualUser][tokenAddress].active = true;
         s
-            .stakesPerToken[msg.sender][tokenAddress]
+            .stakesPerToken[actualUser][tokenAddress]
             .isFinancier = isExistingFinancier;
 
         // Update totals
@@ -641,9 +645,9 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         _recalculateAllVotingPowers();
 
         emit Staked(
-            msg.sender,
+            actualUser,
             amount,
-            s.stakesPerToken[msg.sender][tokenAddress].votingPower,
+            s.stakesPerToken[actualUser][tokenAddress].votingPower,
             s.currentRewardRate,
             customDeadline,
             isExistingFinancier
@@ -682,6 +686,9 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             ) revert ExcessiveAmount();
         }
 
+        // CRITICAL: Resolve address - get EOA if caller is Smart Account, otherwise use msg.sender
+        address actualUser = LibAddressResolver.resolveToEOA(msg.sender);
+
         // Validate custom deadline for financiers
         uint256 minDeadline = block.timestamp + s.minFinancierLockDuration;
         if (customDeadline < minDeadline) {
@@ -691,43 +698,44 @@ contract LiquidityPoolFacet is ReentrancyGuard {
             revert InvalidDeadline();
 
         IERC20 token = IERC20(tokenAddress);
-        if (token.balanceOf(msg.sender) < amount) revert InsufficientBalance();
-        if (token.allowance(msg.sender, address(this)) < amount)
+        // CRITICAL: Check balance and allowance from actualUser (EOA has the funds)
+        if (token.balanceOf(actualUser) < amount) revert InsufficientBalance();
+        if (token.allowance(actualUser, address(this)) < amount)
             revert InsufficientAllowance();
 
         // Update rewards for this specific token stake
-        _updateTokenRewards(msg.sender, tokenAddress);
+        _updateTokenRewards(actualUser, tokenAddress);
 
-        // Transfer tokens
-        token.safeTransferFrom(msg.sender, address(this), amount);
+        // CRITICAL: Transfer tokens from actualUser (EOA), not msg.sender (Smart Account)
+        token.safeTransferFrom(actualUser, address(this), amount);
 
         // Track user if first stake
-        if (s.stakesPerToken[msg.sender][tokenAddress].amount == 0) {
-            if (!_isExistingStaker(msg.sender)) {
-                s.stakers.push(msg.sender);
+        if (s.stakesPerToken[actualUser][tokenAddress].amount == 0) {
+            if (!_isExistingStaker(actualUser)) {
+                s.stakers.push(actualUser);
                 s.totalLiquidityProviders++;
             }
         }
 
-        // Update stake record for this token as FINANCIER
-        s.stakesPerToken[msg.sender][tokenAddress].amount += amount;
-        s.stakesPerToken[msg.sender][tokenAddress].timestamp = block.timestamp;
-        s.stakesPerToken[msg.sender][tokenAddress].lastRewardTimestamp = block
+        // Update stake record for this token as FINANCIER - credit to actualUser (EOA)
+        s.stakesPerToken[actualUser][tokenAddress].amount += amount;
+        s.stakesPerToken[actualUser][tokenAddress].timestamp = block.timestamp;
+        s.stakesPerToken[actualUser][tokenAddress].lastRewardTimestamp = block
             .timestamp;
         // CRITICAL: Use max of existing and new deadline to prevent lock period reduction
         if (
-            s.stakesPerToken[msg.sender][tokenAddress].deadline < customDeadline
+            s.stakesPerToken[actualUser][tokenAddress].deadline < customDeadline
         ) {
             s
-                .stakesPerToken[msg.sender][tokenAddress]
+                .stakesPerToken[actualUser][tokenAddress]
                 .deadline = customDeadline;
         }
-        s.stakesPerToken[msg.sender][tokenAddress].stakingToken = tokenAddress;
+        s.stakesPerToken[actualUser][tokenAddress].stakingToken = tokenAddress;
         s
-            .stakesPerToken[msg.sender][tokenAddress]
+            .stakesPerToken[actualUser][tokenAddress]
             .usdEquivalent += usdEquivalent;
-        s.stakesPerToken[msg.sender][tokenAddress].active = true;
-        s.stakesPerToken[msg.sender][tokenAddress].isFinancier = true;
+        s.stakesPerToken[actualUser][tokenAddress].active = true;
+        s.stakesPerToken[actualUser][tokenAddress].isFinancier = true;
 
         // Update totals
         s.totalStakedPerToken[tokenAddress] += amount;
@@ -738,14 +746,14 @@ contract LiquidityPoolFacet is ReentrancyGuard {
         _recalculateAllVotingPowers();
 
         emit Staked(
-            msg.sender,
+            actualUser,
             amount,
-            s.stakesPerToken[msg.sender][tokenAddress].votingPower,
+            s.stakesPerToken[actualUser][tokenAddress].votingPower,
             s.currentRewardRate,
             customDeadline,
             true
         );
-        emit FinancierStatusChanged(msg.sender, true);
+        emit FinancierStatusChanged(actualUser, true);
     }
 
     /**

@@ -2,6 +2,6 @@
   "AddressLinkingFacet": "91c22231921682a98af0306031ed02020190e82f0cca558e80cf361afd4dd78d",
   "DiamondLoupeFacet": "e1ece49f5939438cfef5f13ed69906b719bed75c30f150601c7a839d768fca46",
   "GovernanceFacet": "a1906800e6cfa8fbbdddc776e926b3ff4da9cf8862971390fa46bf446863d52c",
-  "LiquidityPoolFacet": "e0369f91b5e69853f451a7cf13e9eb785ed29ad4a6556868903725d5f6fc906c",
+  "LiquidityPoolFacet": "343c95a7bc3f9cc7e985b394019db0a470b90e150cf0cf3aa05aca92afd1b4d6",
   "OwnershipFacet": "3b584317351748cf8f90990ce60ee488235e31026b749438bcb742c691391374"
 }
