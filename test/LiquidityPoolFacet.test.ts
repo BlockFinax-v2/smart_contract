@@ -4,7 +4,7 @@ const { time } = require("@nomicfoundation/hardhat-network-helpers");
 const { deployDiamond } = require("./helpers/diamondHelper");
 
 describe("LiquidityPoolFacet Comprehensive Tests", function () {
-  
+
   describe("Error Handling Tests", function () {
     it("Should handle zero amount staking error", async function () {
       const deployment = await deployDiamond();
@@ -12,8 +12,9 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
 
       const stakingDeadline = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await expect(
-        liquidityPool.connect(deployment.addr1).stake(0, stakingDeadline)
+        liquidityPool.connect(deployment.addr1).stakeToken(mockUSDCAddress, 0, stakingDeadline, 0)
       ).to.be.revertedWithCustomError(liquidityPool, "ZeroAmount");
     });
 
@@ -24,8 +25,9 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       const belowMinAmount = ethers.parseEther("50"); // Below minimum of 100
       const stakingDeadline = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await expect(
-        liquidityPool.connect(deployment.addr1).stake(belowMinAmount, stakingDeadline)
+        liquidityPool.connect(deployment.addr1).stakeToken(mockUSDCAddress, belowMinAmount, stakingDeadline, belowMinAmount)
       ).to.be.revertedWithCustomError(liquidityPool, "BelowMinimumStake");
     });
 
@@ -33,8 +35,9 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       const deployment = await deployDiamond();
       const liquidityPool = await ethers.getContractAt("LiquidityPoolFacet", await deployment.diamond.getAddress());
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await expect(
-        liquidityPool.connect(deployment.addr1).unstake(ethers.parseEther("100"))
+        liquidityPool.connect(deployment.addr1).unstakeToken(mockUSDCAddress, ethers.parseEther("100"))
       ).to.be.revertedWithCustomError(liquidityPool, "NoActiveStake");
     });
 
@@ -42,9 +45,10 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       const deployment = await deployDiamond();
       const liquidityPool = await ethers.getContractAt("LiquidityPoolFacet", await deployment.diamond.getAddress());
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       // NoActiveStake is checked before ZeroAmount
       await expect(
-        liquidityPool.connect(deployment.addr1).unstake(0)
+        liquidityPool.connect(deployment.addr1).unstakeToken(mockUSDCAddress, 0)
       ).to.be.revertedWithCustomError(liquidityPool, "NoActiveStake");
     });
 
@@ -52,8 +56,9 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       const deployment = await deployDiamond();
       const liquidityPool = await ethers.getContractAt("LiquidityPoolFacet", await deployment.diamond.getAddress());
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await expect(
-        liquidityPool.connect(deployment.addr1).emergencyWithdraw()
+        liquidityPool.connect(deployment.addr1).emergencyWithdrawToken(mockUSDCAddress)
       ).to.be.revertedWithCustomError(liquidityPool, "NoActiveStake");
     });
 
@@ -61,8 +66,9 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       const deployment = await deployDiamond();
       const liquidityPool = await ethers.getContractAt("LiquidityPoolFacet", await deployment.diamond.getAddress());
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await expect(
-        liquidityPool.connect(deployment.addr1).claimRewards()
+        liquidityPool.connect(deployment.addr1).claimTokenRewards(mockUSDCAddress)
       ).to.be.revertedWithCustomError(liquidityPool, "NoActiveStake");
     });
   });
@@ -114,8 +120,9 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       const deployment = await deployDiamond();
       const liquidityPool = await ethers.getContractAt("LiquidityPoolFacet", await deployment.diamond.getAddress());
 
-      const isEligible = await liquidityPool.isEligibleFinancier(await deployment.addr1.getAddress());
-      expect(isEligible).to.be.false;
+      // Using isFinancier instead of isEligibleFinancier (which doesn't exist)
+      const isFinancier = await liquidityPool.isFinancier(await deployment.addr1.getAddress());
+      expect(isFinancier).to.be.false;
     });
   });
 
@@ -153,7 +160,7 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       for (let i = 0; i < 10; i++) {
         const randomDays = Math.floor(Math.random() * 365) + 1; // 1-365 days
         const randomDeadline = Math.floor(Date.now() / 1000) + (randomDays * 24 * 60 * 60);
-        
+
         expect(randomDeadline).to.be.greaterThan(Math.floor(Date.now() / 1000));
         expect(randomDeadline).to.be.lessThan(Math.floor(Date.now() / 1000) + (366 * 24 * 60 * 60));
       }
@@ -166,7 +173,7 @@ describe("LiquidityPoolFacet Comprehensive Tests", function () {
       for (let i = 0; i < 10; i++) {
         const randomMultiplier = Math.floor(Math.random() * 10000) + 1; // 1-10000x
         const randomStake = minStake * BigInt(randomMultiplier);
-        
+
         expect(randomStake).to.be.greaterThanOrEqual(minStake);
         expect(randomStake).to.be.lessThanOrEqual(maxStake);
       }

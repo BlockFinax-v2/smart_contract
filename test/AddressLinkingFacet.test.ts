@@ -3,7 +3,7 @@ const { ethers } = require("hardhat");
 const { deployDiamond } = require("./helpers/diamondHelper");
 
 describe("AddressLinkingFacet Tests", function () {
-  
+
   describe("Address Linking Tests", function () {
     it("Should link smart account to EOA successfully", async function () {
       const deployment = await deployDiamond();
@@ -179,9 +179,10 @@ describe("AddressLinkingFacet Tests", function () {
       // Stake via EOA
       const stakeAmount = ethers.parseEther("1000");
       const stakingDeadline = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
-      
+
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await deployment.mockUSDC.connect(deployment.addr1).approve(await deployment.diamond.getAddress(), stakeAmount);
-      await liquidityPool.connect(deployment.addr1).stake(stakeAmount, stakingDeadline);
+      await liquidityPool.connect(deployment.addr1).stakeToken(mockUSDCAddress, stakeAmount, stakingDeadline, stakeAmount);
 
       // Query from EOA
       const stakeInfoEOA = await liquidityPool.getStake(eoaAddress);
@@ -207,11 +208,13 @@ describe("AddressLinkingFacet Tests", function () {
       // Give smart account signer some tokens and approve
       const stakeAmount = ethers.parseEther("1000");
       const stakingDeadline = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
-      
-      await deployment.mockUSDC.connect(deployment.addr2).approve(await deployment.diamond.getAddress(), stakeAmount);
-      
+
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
+      // Ensure EOA has allowance since funds come from EOA
+      await deployment.mockUSDC.connect(deployment.addr1).approve(await deployment.diamond.getAddress(), stakeAmount);
+
       // Stake via smart account (addr2 simulating smart account)
-      await liquidityPool.connect(deployment.addr2).stake(stakeAmount, stakingDeadline);
+      await liquidityPool.connect(deployment.addr2).stakeToken(mockUSDCAddress, stakeAmount, stakingDeadline, stakeAmount);
 
       // Query from EOA - should show the stake
       const stakeInfo = await liquidityPool.getStake(eoaAddress);
@@ -234,13 +237,15 @@ describe("AddressLinkingFacet Tests", function () {
       const stakeAmount2 = ethers.parseEther("500");
       const stakingDeadline = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60);
 
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       // First stake via EOA
       await deployment.mockUSDC.connect(deployment.addr1).approve(await deployment.diamond.getAddress(), stakeAmount1);
-      await liquidityPool.connect(deployment.addr1).stake(stakeAmount1, stakingDeadline);
+      await liquidityPool.connect(deployment.addr1).stakeToken(mockUSDCAddress, stakeAmount1, stakingDeadline, stakeAmount1);
 
-      // Second stake via smart account
-      await deployment.mockUSDC.connect(deployment.addr2).approve(await deployment.diamond.getAddress(), stakeAmount2);
-      await liquidityPool.connect(deployment.addr2).stake(stakeAmount2, stakingDeadline);
+      // Second stake via smart account - triggers fund transfer from EOA
+      // So EOA must approve the amount
+      await deployment.mockUSDC.connect(deployment.addr1).approve(await deployment.diamond.getAddress(), stakeAmount2);
+      await liquidityPool.connect(deployment.addr2).stakeToken(mockUSDCAddress, stakeAmount2, stakingDeadline, stakeAmount2);
 
       // Total should be sum of both stakes
       const stakeInfo = await liquidityPool.getStake(eoaAddress);
@@ -261,13 +266,14 @@ describe("AddressLinkingFacet Tests", function () {
       // Stake as financier via EOA
       const stakeAmount = ethers.parseEther("10000");
       const stakingDeadline = Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60);
-      
+
+      const mockUSDCAddress = await deployment.mockUSDC.getAddress();
       await deployment.mockUSDC.connect(deployment.addr1).approve(await deployment.diamond.getAddress(), stakeAmount);
-      await liquidityPool.connect(deployment.addr1).stakeAsFinancier(stakeAmount, stakingDeadline);
+      await liquidityPool.connect(deployment.addr1).stakeTokenAsFinancier(mockUSDCAddress, stakeAmount, stakingDeadline, stakeAmount);
 
       // Check eligibility from both addresses
-      const isEligibleEOA = await liquidityPool.isEligibleFinancier(eoaAddress);
-      const isEligibleSA = await liquidityPool.isEligibleFinancier(smartAccountAddress);
+      const isEligibleEOA = await liquidityPool.isFinancier(eoaAddress);
+      const isEligibleSA = await liquidityPool.isFinancier(smartAccountAddress);
 
       expect(isEligibleEOA).to.be.true;
       expect(isEligibleSA).to.be.true; // Should resolve to EOA
@@ -308,7 +314,7 @@ describe("AddressLinkingFacet Tests", function () {
 
       const address = await deployment.addr1.getAddress();
       const [isLinked, linkedAddress, primaryIdentity] = await addressLinking.getLinkInfo(address);
-      
+
       expect(isLinked).to.be.false;
       expect(linkedAddress).to.equal(ethers.ZeroAddress);
       expect(primaryIdentity).to.equal(address);

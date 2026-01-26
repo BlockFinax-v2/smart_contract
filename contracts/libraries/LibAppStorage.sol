@@ -65,6 +65,64 @@ library LibAppStorage {
         Completed // 5 - Request completed
     }
 
+    // Pool Guarantee Application (PGA) Structure
+    struct PoolGuaranteeApplication {
+        string pgaId;
+        address buyer;
+        address seller;
+        uint256 tradeValue;
+        uint256 guaranteeAmount;
+        uint256 collateralAmount; // 10% or specified percentage
+        uint256 duration; // in days
+        uint256 votesFor;
+        uint256 votesAgainst;
+        uint256 createdAt;
+        uint256 votingDeadline;
+        PGAStatus status;
+        bool collateralPaid;
+        bool balancePaymentPaid;
+        bool goodsShipped;
+        string logisticPartner;
+        uint256 certificateIssuedAt;
+        string deliveryAgreementId;
+        string metadataURI; // IPFS hash containing company details, contacts, description, etc.
+        string[] uploadedDocuments; // IPFS hashes or URIs
+        string companyName;
+        string registrationNumber;
+        string tradeDescription;
+        string beneficiaryName;
+        address beneficiaryWallet;
+    }
+
+    enum PGAStatus {
+        None, // 0 - Default/uninitialized state (security)
+        Created, // 1 - PGA created, awaiting financier votes
+        GuaranteeApproved, // 2 - Financiers approved, awaiting seller approval
+        SellerApproved, // 3 - Seller approved, awaiting collateral payment
+        CollateralPaid, // 4 - Collateral paid, awaiting goods shipment
+        GoodsShipped, // 5 - Goods shipped by logistics partner
+        BalancePaymentPaid, // 6 - Balance payment made, ready for certificate
+        CertificateIssued, // 7 - Certificate issued to buyer
+        DeliveryAwaitingConsent, // 8 - Delivery agreement created, awaiting buyer consent
+        Completed, // 9 - Delivery confirmed, PGA completed
+        Rejected, // 10 - Rejected by financiers or seller
+        Expired, // 11 - Deadline expired without completion
+        Disputed // 12 - Delivery disputed by buyer
+    }
+
+    struct DeliveryAgreement {
+        string agreementId;
+        string pgaId;
+        address deliveryPerson;
+        address buyer;
+        uint256 createdAt;
+        uint256 deadline;
+        bool buyerConsent;
+        uint256 buyerSignedAt;
+        string deliveryNotes;
+        string deliveryProofURI; // IPFS hash or document URI
+    }
+
     struct Milestone {
         string title;
         string description;
@@ -205,6 +263,18 @@ library LibAppStorage {
         uint256 totalRequests;
         uint256 totalFunded;
         uint256 approvalThreshold;
+        // Pool Guarantee Application (PGA) Storage
+        mapping(string => PoolGuaranteeApplication) pgas;
+        mapping(string => mapping(address => bool)) hasVotedOnPGA;
+        mapping(string => mapping(address => bool)) pgaVoterSupport;
+        mapping(string => bool) sellerHasVoted; // Track if seller has voted on PGA
+        string[] pgaIds;
+        uint256 totalPGAs;
+        uint256 totalActivePGAs;
+        mapping(address => bool) authorizedLogisticsPartners;
+        mapping(address => bool) authorizedDeliveryPersons;
+        mapping(string => DeliveryAgreement) deliveryAgreements;
+        mapping(string => string[]) pgaToDeliveryAgreements; // pgaId -> agreementIds
         // Escrow Storage
         mapping(uint256 => Escrow) escrows;
         uint256 escrowCounter;

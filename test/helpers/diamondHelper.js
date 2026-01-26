@@ -62,6 +62,10 @@ async function deployDiamond() {
   const addressLinkingFacet = await AddressLinkingFacet.deploy();
   await addressLinkingFacet.waitForDeployment();
 
+  const TradeFinanceFacet = await ethers.getContractFactory("TradeFinanceFacet");
+  const tradeFinanceFacet = await TradeFinanceFacet.deploy();
+  await tradeFinanceFacet.waitForDeployment();
+
   // Deploy MockERC20 for testing
   const MockERC20 = await ethers.getContractFactory("MockERC20");
   const mockUSDC = await MockERC20.deploy(
@@ -105,6 +109,11 @@ async function deployDiamond() {
       facetAddress: await addressLinkingFacet.getAddress(),
       action: FacetCutAction.Add,
       functionSelectors: getSelectors(addressLinkingFacet)
+    },
+    {
+      facetAddress: await tradeFinanceFacet.getAddress(),
+      action: FacetCutAction.Add,
+      functionSelectors: getSelectors(tradeFinanceFacet)
     }
   ];
 
@@ -121,6 +130,10 @@ async function deployDiamond() {
   const tx = await diamondCut.diamondCut(cut, await diamondInit.getAddress(), initCalldata);
   await tx.wait();
 
+  // Explicitly register the mock USDC as a supported staking token via Governance
+  const diamondGovernance = await ethers.getContractAt("GovernanceFacet", await diamond.getAddress());
+  await diamondGovernance.addSupportedStakingToken(await mockUSDC.getAddress());
+
   return {
     diamond,
     diamondCutFacet,
@@ -129,6 +142,7 @@ async function deployDiamond() {
     governanceFacet,
     liquidityPoolFacet,
     addressLinkingFacet,
+    tradeFinanceFacet,
     mockUSDC,
     owner,
     addr1,
@@ -138,21 +152,26 @@ async function deployDiamond() {
 
 async function setupFinancier(diamond, mockUSDC, signer) {
   const liquidityPoolFacet = await ethers.getContractAt("LiquidityPoolFacet", await diamond.getAddress());
-  
+
   // Mint tokens for the financier
   await mockUSDC.mint(await signer.getAddress(), ethers.parseUnits("100000", 18));
-  
+
   // Approve and stake enough to become a financier
   const stakeAmount = ethers.parseUnits("10000", 18); // Well above minimum
+  const mockUSDCAddress = await mockUSDC.getAddress();
+
   await mockUSDC.connect(signer).approve(await diamond.getAddress(), stakeAmount);
-  
+
   // Stake with long deadline (1 year)
   const deadline = Math.floor(Date.now() / 1000) + (365 * 24 * 60 * 60);
-  await liquidityPoolFacet.connect(signer).stake(stakeAmount, deadline);
-  
+
+  // stakeToken parameters: tokenAddress, amount, customDeadline, usdEquivalent
+  // For mockUSDC, we assume 1:1, so usdEquivalent = amount
+  await liquidityPoolFacet.connect(signer).stakeToken(mockUSDCAddress, stakeAmount, deadline, stakeAmount);
+
   // Apply as financier
   await liquidityPoolFacet.connect(signer).applyAsFinancier();
-  
+
   return signer;
 }
 
