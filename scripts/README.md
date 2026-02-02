@@ -38,25 +38,10 @@ The deployment script intelligently deploys only new or updated contracts. It:
 # Make the script executable (one time only)
 chmod +x scripts/deploy.ts
 
-# Deploy to Lisk Sepolia Testnet
-npx ts-node scripts/deploy.ts liskSepolia
-# or
-npx ts-node scripts/deploy.ts lisk testnet
-
-# Deploy to Lisk Mainnet
-npx ts-node scripts/deploy.ts lisk
-# or
-npx ts-node scripts/deploy.ts lisk mainnet
-
-# Deploy to Base Sepolia Testnet
-npx ts-node scripts/deploy.ts baseSepolia
-# or
-npx ts-node scripts/deploy.ts base testnet
-
-# Deploy to Base Mainnet
-npx ts-node scripts/deploy.ts base
-# or
-npx ts-node scripts/deploy.ts base mainnet
+# Upgrade script to Testnets
+npx hardhat run scripts/upgrade.ts --network sepolia
+npx hardhat run scripts/upgrade.ts --network baseSepolia
+npx hardhat run scripts/upgrade.ts --network liskSepolia
 ```
 
 ### What It Does

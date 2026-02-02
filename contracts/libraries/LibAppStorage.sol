@@ -80,6 +80,7 @@ library LibAppStorage {
         uint256 votingDeadline;
         PGAStatus status;
         bool collateralPaid;
+        bool issuanceFeePaid;
         bool balancePaymentPaid;
         bool goodsShipped;
         string logisticPartner;
@@ -272,7 +273,9 @@ library LibAppStorage {
         uint256 totalPGAs;
         uint256 totalActivePGAs;
         mapping(address => bool) authorizedLogisticsPartners;
+        address[] logisticsPartnersList; // Track all logistics partners for enumeration
         mapping(address => bool) authorizedDeliveryPersons;
+        address[] deliveryPersonsList; // Track all delivery persons for enumeration
         mapping(string => DeliveryAgreement) deliveryAgreements;
         mapping(string => string[]) pgaToDeliveryAgreements; // pgaId -> agreementIds
         // Escrow Storage
@@ -295,6 +298,7 @@ library LibAppStorage {
         mapping(string => mapping(address => bool)) proposalExecutionVotes; // proposalId -> financier -> voted
         mapping(string => uint256) proposalExecutionApprovals; // proposalId -> approval count
         uint256 revocationPeriod; // Time required before revocation (default 30 days)
+        address blockFinaxTreasury; // Platform treasury for fee collection
     }
 
     function appStorage() internal pure returns (AppStorage storage s) {

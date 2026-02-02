@@ -53,6 +53,9 @@ contract TradeFinanceFacet is ReentrancyGuard {
     error ZeroAddress();
     error InvalidVotingPower();
     error ExcessiveAmount();
+    error IssuanceFeeAlreadyPaid();
+    error IssuanceFeeNotPaid();
+    error TreasuryNotSet();
 
     // Constants
     uint256 private constant PRECISION = 1e6; // 6 decimals matching voting power normalization
@@ -178,6 +181,19 @@ contract TradeFinanceFacet is ReentrancyGuard {
         uint256 timestamp
     );
 
+    event IssuanceFeePaid(
+        string indexed pgaId,
+        address indexed buyer,
+        address indexed treasury,
+        uint256 amount,
+        uint256 timestamp
+    );
+
+    event BlockFinaxTreasuryUpdated(
+        address indexed oldTreasury,
+        address indexed newTreasury
+    );
+
     event SellerPaymentReleased(
         string indexed pgaId,
         address indexed seller,
@@ -228,7 +244,15 @@ contract TradeFinanceFacet is ReentrancyGuard {
     ) external {
         LibDiamond.enforceIsContractOwner();
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        bool wasAuthorized = s.authorizedLogisticsPartners[partner];
         s.authorizedLogisticsPartners[partner] = authorized;
+
+        // Add to list if newly authorized (keeps history)
+        if (authorized && !wasAuthorized) {
+            s.logisticsPartnersList.push(partner);
+        }
+
         emit LogisticPartnerAuthorized(partner, authorized, block.timestamp);
     }
 
@@ -551,6 +575,77 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pgaId,
             pga.buyer,
             collateralAmount,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @notice Set the BlockFinax treasury address for fee collection
+     * @param _treasury New treasury address
+     */
+    function setBlockFinaxTreasury(address _treasury) external {
+        LibDiamond.enforceIsContractOwner();
+        if (_treasury == address(0)) revert ZeroAddress();
+
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        address oldTreasury = s.blockFinaxTreasury;
+        s.blockFinaxTreasury = _treasury;
+
+        emit BlockFinaxTreasuryUpdated(oldTreasury, _treasury);
+    }
+
+    /**
+     * @notice Get the current BlockFinax treasury address
+     * @return Current treasury address
+     */
+    function getBlockFinaxTreasury() external view returns (address) {
+        return LibAppStorage.appStorage().blockFinaxTreasury;
+    }
+
+    /**
+     * @notice Pay the 1% issuance fee for a Pool Guarantee Application
+     * @param pgaId The unique identifier of the PGA
+     */
+    function payIssuanceFee(
+        string calldata pgaId
+    ) external whenNotPaused nonReentrant {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
+
+        // Validation
+        if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
+        // Fee can be paid once collateral is paid and status is CollateralPaid
+        if (pga.status != LibAppStorage.PGAStatus.CollateralPaid)
+            revert InvalidPGAStatus();
+        if (!pga.collateralPaid) revert CollateralNotPaid();
+        if (pga.issuanceFeePaid) revert IssuanceFeeAlreadyPaid();
+
+        address treasury = s.blockFinaxTreasury;
+        if (treasury == address(0)) revert TreasuryNotSet();
+
+        address resolvedBuyer = LibAddressResolver.resolveToEOA(msg.sender);
+        address pgaBuyer = LibAddressResolver.resolveToEOA(pga.buyer);
+        if (resolvedBuyer != pgaBuyer) revert OnlyBuyerAllowed();
+
+        // 1% of guarantee amount
+        uint256 feeAmount = pga.guaranteeAmount / 100;
+
+        IERC20 usdcToken = IERC20(s.usdcToken);
+        if (usdcToken.balanceOf(msg.sender) < feeAmount)
+            revert InsufficientBalance();
+        if (usdcToken.allowance(msg.sender, address(this)) < feeAmount)
+            revert InsufficientAllowance();
+
+        // Transfer fee directly to BlockFinax Treasury
+        usdcToken.safeTransferFrom(msg.sender, treasury, feeAmount);
+
+        pga.issuanceFeePaid = true;
+
+        emit IssuanceFeePaid(
+            pgaId,
+            msg.sender,
+            treasury,
+            feeAmount,
             block.timestamp
         );
     }
@@ -1035,6 +1130,14 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (deliveryPerson == address(0)) revert ZeroAddress();
 
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // If authorizing and not already in the list, add to array
+        if (authorized && !s.authorizedDeliveryPersons[deliveryPerson]) {
+            s.deliveryPersonsList.push(deliveryPerson);
+        }
+        // Note: We don't remove from array when deauthorizing to preserve gas
+        // The getter function will filter based on authorization status
+
         s.authorizedDeliveryPersons[deliveryPerson] = authorized;
 
         emit LogisticPartnerAuthorized(
@@ -1177,15 +1280,17 @@ contract TradeFinanceFacet is ReentrancyGuard {
     }
 
     /**
-     * @notice Get PGA details
+     * @notice Get complete PGA details in a single call
+     * @dev Returns all PGA fields - optimized for frontend with calldata for gas efficiency
      * @param pgaId The PGA identifier
      */
     function getPGA(
-        string memory pgaId
+        string calldata pgaId
     )
         external
         view
         returns (
+            string memory _pgaId,
             address buyer,
             address seller,
             uint256 tradeValue,
@@ -1198,18 +1303,28 @@ contract TradeFinanceFacet is ReentrancyGuard {
             uint256 votingDeadline,
             LibAppStorage.PGAStatus status,
             bool collateralPaid,
+            bool issuanceFeePaid,
             bool balancePaymentPaid,
             bool goodsShipped,
             string memory logisticPartner,
             uint256 certificateIssuedAt,
             string memory deliveryAgreementId,
-            string memory metadataURI
+            string memory metadataURI,
+            string memory companyName,
+            string memory registrationNumber,
+            string memory tradeDescription,
+            string memory beneficiaryName,
+            address beneficiaryWallet,
+            string[] memory uploadedDocuments
         )
     {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
+        if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
+
         return (
+            pga.pgaId,
             pga.buyer,
             pga.seller,
             pga.tradeValue,
@@ -1222,12 +1337,19 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pga.votingDeadline,
             pga.status,
             pga.collateralPaid,
+            pga.issuanceFeePaid,
             pga.balancePaymentPaid,
             pga.goodsShipped,
             pga.logisticPartner,
             pga.certificateIssuedAt,
             pga.deliveryAgreementId,
-            pga.metadataURI
+            pga.metadataURI,
+            pga.companyName,
+            pga.registrationNumber,
+            pga.tradeDescription,
+            pga.beneficiaryName,
+            pga.beneficiaryWallet,
+            pga.uploadedDocuments
         );
     }
 
@@ -1235,7 +1357,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
      * @notice Get PGA uploaded documents
      */
     function getPGADocuments(
-        string memory pgaId
+        string calldata pgaId
     ) external view returns (string[] memory) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
@@ -1447,6 +1569,32 @@ contract TradeFinanceFacet is ReentrancyGuard {
     ) external view returns (bool) {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         return s.authorizedDeliveryPersons[deliveryPerson];
+    }
+
+    /**
+     * @notice Get all logistics partners ever registered
+     * @dev Returns all partners (authorized and deauthorized)
+     * @dev Frontend should filter by calling isAuthorizedLogisticsPartner() for each
+     * @return Array of logistics partner addresses
+     */
+    function getAllLogisticsPartners()
+        external
+        view
+        returns (address[] memory)
+    {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.logisticsPartnersList;
+    }
+
+    /**
+     * @notice Get all delivery persons ever registered
+     * @dev Returns all delivery persons (authorized and deauthorized)
+     * @dev Frontend should filter by calling isAuthorizedDeliveryPerson() for each
+     * @return Array of delivery person addresses
+     */
+    function getAllDeliveryPersons() external view returns (address[] memory) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        return s.deliveryPersonsList;
     }
 
     /**

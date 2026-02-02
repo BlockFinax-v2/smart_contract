@@ -332,8 +332,8 @@ async function main() {
     } else {
       // Primary check: Compare content hashes to detect code changes
       const currentHash = calculateContractHash(facetName);
-      const savedHashes = loadContractHashes();
-      const savedHash = savedHashes[facetName];
+      // Use network-specific hash from deployment record, not global hash file
+      const savedHash = existingFacet.contentHash;
       const hashChanged = !savedHash || savedHash !== currentHash;
 
       // Secondary check: Verify deployment address matches Diamond
@@ -359,6 +359,8 @@ async function main() {
         console.log(`   ✨ ${facetName} - UPDATED (will be replaced)`);
         if (hashChanged) {
           console.log(`      Reason: Code changes detected`);
+          console.log(`      Old hash: ${savedHash?.substring(0, 16)}...`);
+          console.log(`      New hash: ${currentHash.substring(0, 16)}...`);
         }
         if (addressChanged) {
           console.log(`      Reason: Address mismatch (Diamond: ${addressInDiamond}, Deployment: ${existingFacet.address})`);
@@ -556,16 +558,7 @@ async function main() {
   history[network] = deployment;
   saveDeploymentHistory(history);
 
-  // Update contract hashes
-  const hashes = loadContractHashes();
-  for (const facetName of UPGRADEABLE_FACET_NAMES) {
-    if (newFacets.includes(facetName) || updatedFacets.includes(facetName)) {
-      hashes[facetName] = calculateContractHash(facetName);
-    }
-  }
-  // Remove hashes for deleted facets
-  removedFacets.forEach(name => delete hashes[name]);
-  saveContractHashes(hashes);
+  console.log(`   ✓ Deployment records updated`);
 
   // Verify upgrade by reading Diamond state
   console.log(`\n✅ Verifying Diamond state...`);
