@@ -1113,6 +1113,14 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (partner == address(0)) revert ZeroAddress();
 
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // If authorizing and not already in the list, add to array
+        if (authorized && !s.authorizedLogisticsPartners[partner]) {
+            s.logisticsPartnersList.push(partner);
+        }
+        // Note: We don't remove from array when deauthorizing to preserve gas
+        // The getter function will filter based on authorization status
+
         s.authorizedLogisticsPartners[partner] = authorized;
 
         emit LogisticPartnerAuthorized(partner, authorized, block.timestamp);
