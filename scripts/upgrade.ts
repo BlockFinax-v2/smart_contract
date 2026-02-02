@@ -424,7 +424,7 @@ async function main() {
     console.log(`   ➕ ADD ${facetName}: ${selectors.length} functions`);
   }
 
-  // 2. Prepare REPLACE/ADD operations for updated facets
+  // 2. Prepare REPLACE/ADD/REMOVE operations for updated facets
   for (const facetName of updatedFacets) {
     const existingFacet = deployment.facets.find(f => f.name === facetName);
     if (!existingFacet) {
@@ -439,23 +439,56 @@ async function main() {
     const facet = await ethers.getContractAt(facetName, facetDeployment.address);
     const newSelectors = getSelectors(facet);
 
-    // Get existing selectors from Diamond for this facet by matching function selectors
-    // We can't rely on address matching since the Diamond may have a different address than deployment.json
+    // Get existing selectors from Diamond for this facet
+    // CRITICAL: There may be MULTIPLE facet addresses with selectors for this facet
+    // (e.g., from previous broken upgrades with orphaned selectors)
+    // We need to collect ALL selectors across ALL matching facet addresses
     let existingSelectors: string[] = [];
+    const matchedFacetAddresses: string[] = [];
+    
     if (newSelectors.length > 0) {
-      // Find which facet in Diamond has these selectors by checking a sample selector
-      const sampleSelector = newSelectors[0];
-      for (const cf of currentFacets) {
-        if (cf.functionSelectors.includes(sampleSelector)) {
-          existingSelectors = cf.functionSelectors;
-          break;
+      // Find ALL facets in Diamond that have any selector matching this facet
+      for (const newSelector of newSelectors) {
+        for (const cf of currentFacets) {
+          if (cf.functionSelectors.includes(newSelector) && 
+              !matchedFacetAddresses.includes(cf.facetAddress)) {
+            matchedFacetAddresses.push(cf.facetAddress);
+            // Add all selectors from this facet address
+            existingSelectors.push(...cf.functionSelectors);
+          }
+        }
+      }
+      
+      // Remove duplicates
+      existingSelectors = [...new Set(existingSelectors)];
+      
+      if (matchedFacetAddresses.length > 1) {
+        console.log(`   ⚠️  ${facetName} found in MULTIPLE Diamond facet addresses (orphaned selectors detected):`);
+        for (const addr of matchedFacetAddresses) {
+          const cf = currentFacets.find(f => f.facetAddress === addr);
+          console.log(`      - ${addr}: ${cf?.functionSelectors.length || 0} selectors`);
         }
       }
     }
 
+    // EDGE CASE: Detect orphaned selectors (functions removed from facet code)
+    // Orphaned selectors exist in Diamond but NOT in new code
+    const orphanedSelectors = existingSelectors.filter(s => !newSelectors.includes(s));
+
     // Separate selectors into existing (to REPLACE) and new (to ADD)
     const selectorsToReplace = newSelectors.filter(s => existingSelectors.includes(s));
     const selectorsToAdd = newSelectors.filter(s => !existingSelectors.includes(s));
+
+    // CRITICAL: Remove orphaned selectors BEFORE replacing/adding new ones
+    if (orphanedSelectors.length > 0) {
+      facetCuts.push({
+        facetAddress: ethers.ZeroAddress, // Must be zero address for Remove action
+        action: FacetCutAction.Remove,
+        functionSelectors: orphanedSelectors
+      });
+      console.log(`   🗑️  REMOVE orphaned selectors from ${facetName}: ${orphanedSelectors.length} functions`);
+      console.log(`      These functions were removed from the code but still existed in Diamond`);
+    }
 
     // Add REPLACE operation for existing functions
     if (selectorsToReplace.length > 0) {

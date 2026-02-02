@@ -241,19 +241,95 @@ contract TradeFinanceFacet is ReentrancyGuard {
     function authorizeLogisticsPartner(
         address partner,
         bool authorized
-    ) external {
+    ) public {
         LibDiamond.enforceIsContractOwner();
+        if (partner == address(0)) revert ZeroAddress();
+
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
 
+        // Check current authorization status BEFORE updating
         bool wasAuthorized = s.authorizedLogisticsPartners[partner];
-        s.authorizedLogisticsPartners[partner] = authorized;
 
-        // Add to list if newly authorized (keeps history)
+        // Only update if status is changing
         if (authorized && !wasAuthorized) {
+            // Add to list and authorize
             s.logisticsPartnersList.push(partner);
+            s.authorizedLogisticsPartners[partner] = true;
+            emit LogisticPartnerAuthorized(partner, true, block.timestamp);
+        } else if (!authorized && wasAuthorized) {
+            // Deauthorize (keep in list for history)
+            s.authorizedLogisticsPartners[partner] = false;
+            emit LogisticPartnerAuthorized(partner, false, block.timestamp);
+        }
+        // If status is not changing, do nothing
+    }
+
+    /**
+     * @notice Authorize or deauthorize logistics partner (alias for compatibility)
+     * @dev Only contract owner can manage logistics partners
+     * @dev This is an alias for authorizeLogisticsPartner to maintain backward compatibility
+     */
+    function setLogisticsPartner(address partner, bool authorized) external {
+        // Simply delegate to authorizeLogisticsPartner to avoid code duplication
+        authorizeLogisticsPartner(partner, authorized);
+    }
+
+    /**
+     * @notice Remove logistics partner completely from the system
+     * @dev Only contract owner can remove logistics partners
+     * @dev This completely removes the partner from both the mapping and array
+     * @param partner Address of the logistics partner to remove
+     */
+    function removeLogisticsPartner(address partner) external {
+        LibDiamond.enforceIsContractOwner();
+        if (partner == address(0)) revert ZeroAddress();
+
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Remove from mapping
+        delete s.authorizedLogisticsPartners[partner];
+
+        // Remove from array
+        address[] storage list = s.logisticsPartnersList;
+        for (uint256 i = 0; i < list.length; i++) {
+            if (list[i] == partner) {
+                // Move last element to this position and pop
+                list[i] = list[list.length - 1];
+                list.pop();
+                break;
+            }
         }
 
-        emit LogisticPartnerAuthorized(partner, authorized, block.timestamp);
+        emit LogisticPartnerAuthorized(partner, false, block.timestamp);
+    }
+
+    /**
+     * @notice Remove delivery person completely from the system
+     * @dev Only contract owner can remove delivery persons
+     * @dev This completely removes the delivery person from both the mapping and array
+     * @param deliveryPerson Address of the delivery person to remove
+     */
+    function removeDeliveryPerson(address deliveryPerson) external {
+        LibDiamond.enforceIsContractOwner();
+        if (deliveryPerson == address(0)) revert ZeroAddress();
+
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+
+        // Remove from mapping
+        delete s.authorizedDeliveryPersons[deliveryPerson];
+
+        // Remove from array
+        address[] storage list = s.deliveryPersonsList;
+        for (uint256 i = 0; i < list.length; i++) {
+            if (list[i] == deliveryPerson) {
+                // Move last element to this position and pop
+                list[i] = list[list.length - 1];
+                list.pop();
+                break;
+            }
+        }
+
+        emit LogisticPartnerAuthorized(deliveryPerson, false, block.timestamp);
     }
 
     /**
@@ -1102,28 +1178,6 @@ contract TradeFinanceFacet is ReentrancyGuard {
             totalPayment,
             block.timestamp
         );
-    }
-
-    /**
-     * @notice Authorize or deauthorize logistics partner
-     * @dev Only contract owner can manage logistics partners
-     */
-    function setLogisticsPartner(address partner, bool authorized) external {
-        LibDiamond.enforceIsContractOwner();
-        if (partner == address(0)) revert ZeroAddress();
-
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-
-        // If authorizing and not already in the list, add to array
-        if (authorized && !s.authorizedLogisticsPartners[partner]) {
-            s.logisticsPartnersList.push(partner);
-        }
-        // Note: We don't remove from array when deauthorizing to preserve gas
-        // The getter function will filter based on authorization status
-
-        s.authorizedLogisticsPartners[partner] = authorized;
-
-        emit LogisticPartnerAuthorized(partner, authorized, block.timestamp);
     }
 
     /**
