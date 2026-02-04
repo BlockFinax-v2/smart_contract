@@ -70,7 +70,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
         tradeFinanceFacet.connect(owner).authorizeLogisticsPartner(partnerAddress, true)
       )
         .to.emit(tradeFinanceFacet, "LogisticPartnerAuthorized")
-        .withArgs(partnerAddress, true, await time.latest());
+        .withArgs(partnerAddress, true, await time.latest() + 1);
 
       // Verify authorization
       const isAuthorized = await tradeFinanceFacet.isAuthorizedLogisticsPartner(
@@ -346,7 +346,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
       await mockUSDC
         .connect(buyer)
         .approve(await deployment.diamond.getAddress(), collateralAmount);
-      await tradeFinanceFacet.connect(buyer).payCollateral(pgaId);
+      await tradeFinanceFacet.connect(buyer).payCollateral(pgaId, await mockUSDC.getAddress());
     });
 
     it("Should pay issuance fee successfully", async function () {
@@ -361,7 +361,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
         await treasury.getAddress()
       );
 
-      await expect(tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId))
+      await expect(tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId, await mockUSDC.getAddress()))
         .to.emit(tradeFinanceFacet, "IssuanceFeePaid")
         .withArgs(
           pgaId,
@@ -385,7 +385,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
         .connect(buyer)
         .approve(await deployment.diamond.getAddress(), feeAmount);
 
-      await tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId);
+      await tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId, await mockUSDC.getAddress());
 
       const pga = await tradeFinanceFacet.getPGA(pgaId);
       expect(pga.issuanceFeePaid).to.be.true;
@@ -414,7 +414,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
       await tradeFinanceFacet.connect(seller).sellerVoteOnPGA(newPgaId, true);
 
       await expect(
-        tradeFinanceFacet.connect(buyer).payIssuanceFee(newPgaId)
+        tradeFinanceFacet.connect(buyer).payIssuanceFee(newPgaId, await mockUSDC.getAddress())
       ).to.be.revertedWithCustomError(tradeFinanceFacet, "InvalidPGAStatus");
     });
 
@@ -451,11 +451,11 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
       await newDeployment.mockUSDC
         .connect(buyer)
         .approve(await newDeployment.diamond.getAddress(), collateralAmount);
-      await newTradeFacet.connect(buyer).payCollateral(testPgaId);
+      await newTradeFacet.connect(buyer).payCollateral(testPgaId, await newDeployment.mockUSDC.getAddress());
 
       await expect(
-        newTradeFacet.connect(buyer).payIssuanceFee(testPgaId)
-      ).to.be.revertedWithCustomError(newTradeFacet, "TreasuryNotSet");
+        newTradeFacet.connect(buyer).payIssuanceFee(testPgaId, await newDeployment.mockUSDC.getAddress())
+      ).to.be.revertedWithCustomError(tradeFinanceFacet, "TreasuryNotSet");
     });
 
     it("Should revert if fee already paid", async function () {
@@ -466,10 +466,10 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
         .connect(buyer)
         .approve(await deployment.diamond.getAddress(), feeAmount * 2n);
 
-      await tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId);
+      await tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId, await mockUSDC.getAddress());
 
       await expect(
-        tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId)
+        tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId, await mockUSDC.getAddress())
       ).to.be.revertedWithCustomError(tradeFinanceFacet, "IssuanceFeeAlreadyPaid");
     });
 
@@ -482,7 +482,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
         .approve(await deployment.diamond.getAddress(), feeAmount);
 
       await expect(
-        tradeFinanceFacet.connect(seller).payIssuanceFee(pgaId)
+        tradeFinanceFacet.connect(seller).payIssuanceFee(pgaId, await mockUSDC.getAddress())
       ).to.be.revertedWithCustomError(tradeFinanceFacet, "OnlyBuyerAllowed");
     });
   });
@@ -580,7 +580,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
       await mockUSDC
         .connect(buyer)
         .approve(await deployment.diamond.getAddress(), collateralAmount);
-      await tradeFinanceFacet.connect(buyer).payCollateral(pgaId);
+      await tradeFinanceFacet.connect(buyer).payCollateral(pgaId, await mockUSDC.getAddress());
       pga = await tradeFinanceFacet.getPGA(pgaId);
       expect(pga.status).to.equal(4); // CollateralPaid
       expect(pga.collateralPaid).to.be.true;
@@ -591,7 +591,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
       await mockUSDC
         .connect(buyer)
         .approve(await deployment.diamond.getAddress(), feeAmount);
-      await tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId);
+      await tradeFinanceFacet.connect(buyer).payIssuanceFee(pgaId, await mockUSDC.getAddress());
       pga = await tradeFinanceFacet.getPGA(pgaId);
       expect(pga.issuanceFeePaid).to.be.true;
 
@@ -611,7 +611,7 @@ describe("TradeFinanceFacet - Comprehensive Tests for Updated Functions", functi
       await mockUSDC
         .connect(buyer)
         .approve(await deployment.diamond.getAddress(), balanceAmount);
-      await tradeFinanceFacet.connect(buyer).payBalancePayment(pgaId);
+      await tradeFinanceFacet.connect(buyer).payBalancePayment(pgaId, await mockUSDC.getAddress());
       pga = await tradeFinanceFacet.getPGA(pgaId);
       expect(pga.status).to.equal(6); // BalancePaymentPaid
 

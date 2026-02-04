@@ -73,6 +73,7 @@ library LibAppStorage {
         uint256 tradeValue;
         uint256 guaranteeAmount;
         uint256 collateralAmount; // 10% or specified percentage
+        uint256 issuanceFee; // Certificate issuance fee
         uint256 duration; // in days
         uint256 votesFor;
         uint256 votesAgainst;
@@ -84,6 +85,7 @@ library LibAppStorage {
         bool balancePaymentPaid;
         bool goodsShipped;
         string logisticPartner;
+        address logisticsPartner; // Partner who takes up the delivery
         uint256 certificateIssuedAt;
         string deliveryAgreementId;
         string metadataURI; // IPFS hash containing company details, contacts, description, etc.
@@ -100,15 +102,17 @@ library LibAppStorage {
         Created, // 1 - PGA created, awaiting financier votes
         GuaranteeApproved, // 2 - Financiers approved, awaiting seller approval
         SellerApproved, // 3 - Seller approved, awaiting collateral payment
-        CollateralPaid, // 4 - Collateral paid, awaiting goods shipment
-        GoodsShipped, // 5 - Goods shipped by logistics partner
-        BalancePaymentPaid, // 6 - Balance payment made, ready for certificate
-        CertificateIssued, // 7 - Certificate issued to buyer
-        DeliveryAwaitingConsent, // 8 - Delivery agreement created, awaiting buyer consent
-        Completed, // 9 - Delivery confirmed, PGA completed
-        Rejected, // 10 - Rejected by financiers or seller
-        Expired, // 11 - Deadline expired without completion
-        Disputed // 12 - Delivery disputed by buyer
+        CollateralPaid, // 4 - Collateral paid, awaiting issuance fee / logistics
+        LogisticsNotified, // 5 - Collateral & Fee paid, awaiting logistics take-up
+        LogisticsTakeup, // 6 - Logistics partner claimed the application
+        GoodsShipped, // 7 - Goods shipped by logistics partner
+        GoodsDelivered, // 8 - Goods delivered, awaiting balance payment
+        BalancePaymentPaid, // 9 - Balance payment made, ready for certificate
+        CertificateIssued, // 10 - Certificate issued to buyer
+        Completed, // 11 - Transaction fully completed
+        Rejected, // 12 - Rejected by financiers or seller
+        Expired, // 13 - Deadline expired without completion
+        Disputed // 14 - Delivery disputed by buyer
     }
 
     struct DeliveryAgreement {

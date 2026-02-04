@@ -56,6 +56,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
     error IssuanceFeeAlreadyPaid();
     error IssuanceFeeNotPaid();
     error TreasuryNotSet();
+    error InvalidTokenAddress();
 
     // Constants
     uint256 private constant PRECISION = 1e6; // 6 decimals matching voting power normalization
@@ -345,6 +346,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
         uint256 tradeValue,
         uint256 guaranteeAmount,
         uint256 collateralAmount,
+        uint256 issuanceFee,
         uint256 duration,
         string calldata beneficiaryName,
         address beneficiaryWallet,
@@ -386,6 +388,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
         pga.tradeValue = tradeValue;
         pga.guaranteeAmount = guaranteeAmount;
         pga.collateralAmount = collateralAmount;
+        pga.issuanceFee = issuanceFee;
         pga.duration = duration;
         pga.votesFor = 0;
         pga.votesAgainst = 0;
@@ -609,7 +612,8 @@ contract TradeFinanceFacet is ReentrancyGuard {
      * @dev Transfers collateral to the Treasury Pool (Diamond contract)
      */
     function payCollateral(
-        string calldata pgaId
+        string calldata pgaId,
+        address tokenAddress
     ) external whenNotPaused nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
@@ -618,6 +622,8 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
         if (pga.status != LibAppStorage.PGAStatus.SellerApproved)
             revert InvalidPGAStatus();
+        if (tokenAddress == address(0)) revert InvalidTokenAddress();
+        require(s.isStakingTokenSupported[tokenAddress], "Token not supported");
 
         address resolvedBuyer = LibAddressResolver.resolveToEOA(msg.sender);
         address pgaBuyer = LibAddressResolver.resolveToEOA(pga.buyer);
@@ -626,27 +632,30 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (pga.collateralPaid) revert CollateralAlreadyPaid();
 
         // Transfer collateral to Treasury Pool (this contract)
-        IERC20 usdcToken = IERC20(s.usdcToken);
+        IERC20 token = IERC20(tokenAddress);
         uint256 collateralAmount = pga.collateralAmount;
 
-        if (usdcToken.balanceOf(msg.sender) < collateralAmount)
+        // CRITICAL: Check balance and allowance from resolvedBuyer (EOA has the funds)
+        if (token.balanceOf(resolvedBuyer) < collateralAmount)
             revert InsufficientBalance();
-        if (usdcToken.allowance(msg.sender, address(this)) < collateralAmount)
+        if (token.allowance(resolvedBuyer, address(this)) < collateralAmount)
             revert InsufficientAllowance();
 
-        usdcToken.safeTransferFrom(msg.sender, address(this), collateralAmount);
+        // CRITICAL: Transfer from resolvedBuyer (EOA), not msg.sender (Smart Account)
+        token.safeTransferFrom(resolvedBuyer, address(this), collateralAmount);
 
         // Update PGA status
         pga.collateralPaid = true;
         LibAppStorage.PGAStatus oldStatus = pga.status;
-        pga.status = LibAppStorage.PGAStatus.CollateralPaid;
 
-        emit PGAStatusChanged(
-            pgaId,
-            oldStatus,
-            LibAppStorage.PGAStatus.CollateralPaid,
-            block.timestamp
-        );
+        // If fee is also paid, notify logistics. Otherwise move to CollateralPaid
+        if (pga.issuanceFeePaid) {
+            pga.status = LibAppStorage.PGAStatus.LogisticsNotified;
+        } else {
+            pga.status = LibAppStorage.PGAStatus.CollateralPaid;
+        }
+
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
         emit CollateralPaid(
             pgaId,
             pga.buyer,
@@ -683,86 +692,116 @@ contract TradeFinanceFacet is ReentrancyGuard {
      * @param pgaId The unique identifier of the PGA
      */
     function payIssuanceFee(
-        string calldata pgaId
+        string calldata pgaId,
+        address tokenAddress
     ) external whenNotPaused nonReentrant {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
         // Validation
         if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
-        // Fee can be paid once collateral is paid and status is CollateralPaid
-        if (pga.status != LibAppStorage.PGAStatus.CollateralPaid)
-            revert InvalidPGAStatus();
-        if (!pga.collateralPaid) revert CollateralNotPaid();
-        if (pga.issuanceFeePaid) revert IssuanceFeeAlreadyPaid();
 
-        address treasury = s.blockFinaxTreasury;
-        if (treasury == address(0)) revert TreasuryNotSet();
+        // Should be either SellerApproved or CollateralPaid
+        if (
+            pga.status != LibAppStorage.PGAStatus.SellerApproved &&
+            pga.status != LibAppStorage.PGAStatus.CollateralPaid
+        ) revert InvalidPGAStatus();
+
+        if (tokenAddress == address(0)) revert InvalidTokenAddress();
+        require(s.isStakingTokenSupported[tokenAddress], "Token not supported");
 
         address resolvedBuyer = LibAddressResolver.resolveToEOA(msg.sender);
         address pgaBuyer = LibAddressResolver.resolveToEOA(pga.buyer);
+
         if (resolvedBuyer != pgaBuyer) revert OnlyBuyerAllowed();
+        if (pga.issuanceFeePaid) revert IssuanceFeeAlreadyPaid();
 
-        // 1% of guarantee amount
-        uint256 feeAmount = pga.guaranteeAmount / 100;
+        // Transfer fee to Treasury Pool (this contract)
+        IERC20 token = IERC20(tokenAddress);
+        uint256 feeAmount = pga.issuanceFee;
 
-        IERC20 usdcToken = IERC20(s.usdcToken);
-        if (usdcToken.balanceOf(msg.sender) < feeAmount)
+        // CRITICAL: Check balance and allowance from resolvedBuyer
+        if (token.balanceOf(resolvedBuyer) < feeAmount)
             revert InsufficientBalance();
-        if (usdcToken.allowance(msg.sender, address(this)) < feeAmount)
+        if (token.allowance(resolvedBuyer, address(this)) < feeAmount)
             revert InsufficientAllowance();
 
-        // Transfer fee directly to BlockFinax Treasury
-        usdcToken.safeTransferFrom(msg.sender, treasury, feeAmount);
+        // CRITICAL: Transfer from resolvedBuyer (EOA)
+        token.safeTransferFrom(resolvedBuyer, address(this), feeAmount);
 
+        // Update PGA status
         pga.issuanceFeePaid = true;
+        LibAppStorage.PGAStatus oldStatus = pga.status;
 
+        // If collateral is also paid, notify logistics. Otherwise stay in CollateralPaid
+        if (pga.collateralPaid) {
+            pga.status = LibAppStorage.PGAStatus.LogisticsNotified;
+        }
+
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
         emit IssuanceFeePaid(
             pgaId,
-            msg.sender,
-            treasury,
+            pga.buyer,
+            address(this),
             feeAmount,
             block.timestamp
         );
     }
 
     /**
-     * @notice Logistics partner confirms goods shipment
-     * @dev Only authorized logistics partners can confirm shipment
+     * @notice Logistics partner takes up the application
+     * @param pgaId The ID of the PGA
      */
-    function confirmGoodsShipped(
-        string calldata pgaId,
-        string calldata logisticPartnerName
-    ) external whenNotPaused nonReentrant {
+    function takeUpPGA(string calldata pgaId) external whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
-        // Validation
-        if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
-        if (pga.status != LibAppStorage.PGAStatus.CollateralPaid)
+        if (pga.status != LibAppStorage.PGAStatus.LogisticsNotified)
             revert InvalidPGAStatus();
-        if (!s.authorizedLogisticsPartners[msg.sender])
-            revert OnlyLogisticsPartner();
-        if (pga.goodsShipped) revert InvalidPGAStatus();
 
-        // Update PGA status
-        pga.goodsShipped = true;
-        pga.logisticPartner = logisticPartnerName;
+        // For MVP, we let any verified logistics partner (if we had a role)
+        // take it up. For now, anyone can call it as long as they provide the attestation.
+        LibAppStorage.PGAStatus oldStatus = pga.status;
+        pga.status = LibAppStorage.PGAStatus.LogisticsTakeup;
+        pga.logisticsPartner = msg.sender;
+
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
+    }
+
+    /**
+     * @notice Logistics partner attests that goods have been shipped
+     */
+    function confirmGoodsShipped(string calldata pgaId) external whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
+
+        if (pga.status != LibAppStorage.PGAStatus.LogisticsTakeup)
+            revert InvalidPGAStatus();
+        if (msg.sender != pga.logisticsPartner) revert("Only take-up partner");
+
         LibAppStorage.PGAStatus oldStatus = pga.status;
         pga.status = LibAppStorage.PGAStatus.GoodsShipped;
 
-        emit PGAStatusChanged(
-            pgaId,
-            oldStatus,
-            LibAppStorage.PGAStatus.GoodsShipped,
-            block.timestamp
-        );
-        emit GoodsShipped(
-            pgaId,
-            msg.sender,
-            logisticPartnerName,
-            block.timestamp
-        );
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
+    }
+
+    /**
+     * @notice Logistics partner attests that goods have been delivered
+     */
+    function confirmGoodsDelivered(
+        string calldata pgaId
+    ) external whenNotPaused {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
+
+        if (pga.status != LibAppStorage.PGAStatus.GoodsShipped)
+            revert InvalidPGAStatus();
+        if (msg.sender != pga.logisticsPartner) revert("Only take-up partner");
+
+        LibAppStorage.PGAStatus oldStatus = pga.status;
+        pga.status = LibAppStorage.PGAStatus.GoodsDelivered;
+
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
     }
 
     /**
@@ -777,7 +816,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
 
         // Validation
         if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
-        if (pga.status != LibAppStorage.PGAStatus.GoodsShipped)
+        if (pga.status != LibAppStorage.PGAStatus.GoodsDelivered)
             revert InvalidPGAStatus();
 
         address resolvedBuyer = LibAddressResolver.resolveToEOA(msg.sender);
@@ -796,24 +835,20 @@ contract TradeFinanceFacet is ReentrancyGuard {
         // Transfer balance to Treasury Pool (this contract)
         IERC20 usdcToken = IERC20(s.usdcToken);
 
-        if (usdcToken.balanceOf(msg.sender) < balanceAmount)
+        // FEAT: Use resolvedBuyer for funds transfer
+        if (usdcToken.balanceOf(resolvedBuyer) < balanceAmount)
             revert InsufficientBalance();
-        if (usdcToken.allowance(msg.sender, address(this)) < balanceAmount)
+        if (usdcToken.allowance(resolvedBuyer, address(this)) < balanceAmount)
             revert InsufficientAllowance();
 
-        usdcToken.safeTransferFrom(msg.sender, address(this), balanceAmount);
+        usdcToken.safeTransferFrom(resolvedBuyer, address(this), balanceAmount);
 
         // Update PGA status to BalancePaymentPaid
         pga.balancePaymentPaid = true;
         LibAppStorage.PGAStatus oldStatus = pga.status;
         pga.status = LibAppStorage.PGAStatus.BalancePaymentPaid;
 
-        emit PGAStatusChanged(
-            pgaId,
-            oldStatus,
-            LibAppStorage.PGAStatus.BalancePaymentPaid,
-            block.timestamp
-        );
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
         emit BalancePaymentReceived(
             pgaId,
             pga.buyer,
@@ -824,7 +859,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
 
     /**
      * @notice Issue certificate after balance payment confirmed
-     * @dev Can be called by buyer or contract owner after balance payment confirmation
+     * @dev Complete the trade lifecycle
      */
     function issueCertificate(
         string calldata pgaId
@@ -848,14 +883,11 @@ contract TradeFinanceFacet is ReentrancyGuard {
         // Issue certificate
         pga.certificateIssuedAt = block.timestamp;
         LibAppStorage.PGAStatus oldStatus = pga.status;
-        pga.status = LibAppStorage.PGAStatus.CertificateIssued;
+        pga.status = LibAppStorage.PGAStatus.Completed;
+        s.totalActivePGAs--;
 
-        emit PGAStatusChanged(
-            pgaId,
-            oldStatus,
-            LibAppStorage.PGAStatus.CertificateIssued,
-            block.timestamp
-        );
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
+        emit PGACompleted(pgaId, pga.buyer, pga.seller, block.timestamp);
 
         // Emit certificate data for frontend
         _issueCertificate(pgaId);
@@ -894,151 +926,8 @@ contract TradeFinanceFacet is ReentrancyGuard {
     }
 
     /**
-     * @notice Delivery person creates delivery agreement
-     * @dev Creates agreement awaiting buyer consent
-     */
-    function createDeliveryAgreement(
-        string calldata agreementId,
-        string calldata pgaId,
-        uint256 agreementDeadline,
-        string calldata deliveryNotes,
-        string calldata deliveryProofURI
-    ) external whenNotPaused nonReentrant {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
-
-        // Validation
-        if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
-        if (pga.status != LibAppStorage.PGAStatus.CertificateIssued)
-            revert InvalidPGAStatus();
-        if (bytes(agreementId).length == 0) revert InvalidString();
-        if (s.deliveryAgreements[agreementId].createdAt != 0)
-            revert DeliveryAgreementExists();
-        if (agreementDeadline <= block.timestamp) revert InvalidDuration();
-
-        // Only authorized delivery persons or logistics partners can create delivery agreements
-        if (
-            !s.authorizedDeliveryPersons[msg.sender] &&
-            !s.authorizedLogisticsPartners[msg.sender]
-        ) revert NotAuthorized();
-
-        // Create delivery agreement
-        LibAppStorage.DeliveryAgreement storage agreement = s
-            .deliveryAgreements[agreementId];
-        agreement.agreementId = agreementId;
-        agreement.pgaId = pgaId;
-        agreement.deliveryPerson = msg.sender;
-        agreement.buyer = pga.buyer;
-        agreement.createdAt = block.timestamp;
-        agreement.deadline = agreementDeadline;
-        agreement.buyerConsent = false;
-        agreement.buyerSignedAt = 0;
-        agreement.deliveryNotes = deliveryNotes;
-        agreement.deliveryProofURI = deliveryProofURI;
-
-        // Link agreement to PGA
-        s.pgaToDeliveryAgreements[pgaId].push(agreementId);
-
-        // Update PGA status
-        LibAppStorage.PGAStatus oldStatus = pga.status;
-        pga.status = LibAppStorage.PGAStatus.DeliveryAwaitingConsent;
-        pga.deliveryAgreementId = agreementId;
-
-        emit PGAStatusChanged(
-            pgaId,
-            oldStatus,
-            LibAppStorage.PGAStatus.DeliveryAwaitingConsent,
-            block.timestamp
-        );
-        emit DeliveryAgreementCreated(
-            agreementId,
-            pgaId,
-            msg.sender,
-            pga.buyer,
-            block.timestamp,
-            agreementDeadline,
-            deliveryNotes
-        );
-    }
-
-    /**
-     * @notice Buyer gives consent to delivery agreement
-     * @dev Only buyer can sign, completes the PGA
-     */
-    function buyerConsentToDelivery(
-        string calldata agreementId,
-        bool consent
-    ) external whenNotPaused nonReentrant {
-        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
-        LibAppStorage.DeliveryAgreement storage agreement = s
-            .deliveryAgreements[agreementId];
-
-        // Validation
-        if (agreement.createdAt == 0) revert DeliveryAgreementNotFound();
-        if (agreement.buyerConsent) revert BuyerConsentAlreadyGiven();
-
-        address resolvedBuyer = LibAddressResolver.resolveToEOA(msg.sender);
-        address agreementBuyer = LibAddressResolver.resolveToEOA(
-            agreement.buyer
-        );
-
-        if (resolvedBuyer != agreementBuyer) revert OnlyBuyerAllowed();
-        if (block.timestamp > agreement.deadline) revert PGAExpired();
-
-        LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[
-            agreement.pgaId
-        ];
-        if (pga.status != LibAppStorage.PGAStatus.DeliveryAwaitingConsent)
-            revert InvalidPGAStatus();
-
-        if (consent) {
-            // Update agreement
-            agreement.buyerConsent = true;
-            agreement.buyerSignedAt = block.timestamp;
-
-            // Complete PGA
-            LibAppStorage.PGAStatus oldStatus = pga.status;
-            pga.status = LibAppStorage.PGAStatus.Completed;
-            s.totalActivePGAs--;
-
-            emit BuyerConsentGiven(
-                agreementId,
-                agreement.pgaId,
-                agreement.buyer,
-                block.timestamp
-            );
-            emit PGAStatusChanged(
-                agreement.pgaId,
-                oldStatus,
-                LibAppStorage.PGAStatus.Completed,
-                block.timestamp
-            );
-            emit PGACompleted(
-                agreement.pgaId,
-                pga.buyer,
-                pga.seller,
-                block.timestamp
-            );
-        } else {
-            // Buyer rejected delivery - mark as disputed
-            // CRITICAL FIX: Set to Disputed, not Rejected. Rejected allows immediate refund.
-            // Disputed requires owner intervention via resolveDeliveryDispute.
-            LibAppStorage.PGAStatus oldStatus = pga.status;
-            pga.status = LibAppStorage.PGAStatus.Disputed;
-            // Do NOT decrease totalActivePGAs yet as it is still active/disputed
-
-            emit PGAStatusChanged(
-                agreement.pgaId,
-                oldStatus,
-                LibAppStorage.PGAStatus.Disputed,
-                block.timestamp
-            );
-        }
-    }
-
-    /**
-     * @notice Owner resolves delivery dispute when buyer rejects delivery
-     * @dev Emergency function to handle delivery disputes
+     * @notice Owner resolves delivery dispute
+     * @dev Emergency function to handle disputes in logistics flow
      */
     function resolveDeliveryDispute(
         string calldata pgaId,
@@ -1051,13 +940,13 @@ contract TradeFinanceFacet is ReentrancyGuard {
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
         if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
-        // Allow resolution for Disputed status as well
+        // Allow resolution for any logistics-related status if stuck
         if (
-            pga.status != LibAppStorage.PGAStatus.Disputed &&
-            pga.status != LibAppStorage.PGAStatus.DeliveryAwaitingConsent
+            uint256(pga.status) <
+            uint256(LibAppStorage.PGAStatus.LogisticsNotified) ||
+            pga.status == LibAppStorage.PGAStatus.Completed
         ) {
-            // We allow owner to intervene in Disputed or AwaitingConsent (if stuck)
-            // But primarily for Disputed
+            revert InvalidPGAStatus();
         }
 
         IERC20 usdcToken = IERC20(s.usdcToken);
@@ -1358,6 +1247,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
             uint256 tradeValue,
             uint256 guaranteeAmount,
             uint256 collateralAmount,
+            uint256 issuanceFee,
             uint256 duration,
             uint256 votesFor,
             uint256 votesAgainst,
@@ -1369,6 +1259,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
             bool balancePaymentPaid,
             bool goodsShipped,
             string memory logisticPartner,
+            address logisticsPartner,
             uint256 certificateIssuedAt,
             string memory deliveryAgreementId,
             string memory metadataURI,
@@ -1392,6 +1283,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pga.tradeValue,
             pga.guaranteeAmount,
             pga.collateralAmount,
+            pga.issuanceFee,
             pga.duration,
             pga.votesFor,
             pga.votesAgainst,
@@ -1403,6 +1295,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pga.balancePaymentPaid,
             pga.goodsShipped,
             pga.logisticPartner,
+            pga.logisticsPartner,
             pga.certificateIssuedAt,
             pga.deliveryAgreementId,
             pga.metadataURI,
@@ -1450,14 +1343,9 @@ contract TradeFinanceFacet is ReentrancyGuard {
                 s.pgaIds[i]
             ];
             if (
-                pga.status == LibAppStorage.PGAStatus.Created ||
-                pga.status == LibAppStorage.PGAStatus.GuaranteeApproved ||
-                pga.status == LibAppStorage.PGAStatus.SellerApproved ||
-                pga.status == LibAppStorage.PGAStatus.CollateralPaid ||
-                pga.status == LibAppStorage.PGAStatus.GoodsShipped ||
-                pga.status == LibAppStorage.PGAStatus.BalancePaymentPaid ||
-                pga.status == LibAppStorage.PGAStatus.CertificateIssued ||
-                pga.status == LibAppStorage.PGAStatus.DeliveryAwaitingConsent
+                pga.status != LibAppStorage.PGAStatus.None &&
+                pga.status != LibAppStorage.PGAStatus.Completed &&
+                pga.status != LibAppStorage.PGAStatus.Rejected
             ) {
                 activeCount++;
             }
@@ -1471,14 +1359,9 @@ contract TradeFinanceFacet is ReentrancyGuard {
                 s.pgaIds[i]
             ];
             if (
-                pga.status == LibAppStorage.PGAStatus.Created ||
-                pga.status == LibAppStorage.PGAStatus.GuaranteeApproved ||
-                pga.status == LibAppStorage.PGAStatus.SellerApproved ||
-                pga.status == LibAppStorage.PGAStatus.CollateralPaid ||
-                pga.status == LibAppStorage.PGAStatus.GoodsShipped ||
-                pga.status == LibAppStorage.PGAStatus.BalancePaymentPaid ||
-                pga.status == LibAppStorage.PGAStatus.CertificateIssued ||
-                pga.status == LibAppStorage.PGAStatus.DeliveryAwaitingConsent
+                pga.status != LibAppStorage.PGAStatus.None &&
+                pga.status != LibAppStorage.PGAStatus.Completed &&
+                pga.status != LibAppStorage.PGAStatus.Rejected
             ) {
                 activePGAs[index] = s.pgaIds[i];
                 index++;

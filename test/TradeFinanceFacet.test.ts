@@ -155,7 +155,7 @@ describe("TradeFinanceFacet Comprehensive Tests", function () {
             await mockUSDC.connect(buyer).approve(await deployment.diamond.getAddress(), collateralAmount);
 
             await expect(
-                tradeFinanceFacet.connect(buyer).payCollateral(pgaId)
+                tradeFinanceFacet.connect(buyer).payCollateral(pgaId, await mockUSDC.getAddress())
             ).to.emit(tradeFinanceFacet, "PGAStatusChanged"); // -> CollateralPaid
 
             // 6. Logistics Partner Confirms Shipment
@@ -175,7 +175,7 @@ describe("TradeFinanceFacet Comprehensive Tests", function () {
             await mockUSDC.connect(buyer).approve(await deployment.diamond.getAddress(), balanceAmount);
 
             await expect(
-                tradeFinanceFacet.connect(buyer).payBalancePayment(pgaId)
+                tradeFinanceFacet.connect(buyer).payBalancePayment(pgaId, await mockUSDC.getAddress())
             ).to.emit(tradeFinanceFacet, "PGAStatusChanged"); // -> BalancePaymentPaid
 
             // 8. Issue Certificate
