@@ -794,9 +794,10 @@ contract TradeFinanceFacet is ReentrancyGuard {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
-        if (pga.status != LibAppStorage.PGAStatus.GoodsShipped)
+        if (pga.status != LibAppStorage.PGAStatus.BalancePaymentPaid)
             revert InvalidPGAStatus();
         if (msg.sender != pga.logisticsPartner) revert("Only take-up partner");
+        if (!pga.balancePaymentPaid) revert("Balance not paid");
 
         LibAppStorage.PGAStatus oldStatus = pga.status;
         pga.status = LibAppStorage.PGAStatus.GoodsDelivered;
@@ -816,7 +817,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
 
         // Validation
         if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
-        if (pga.status != LibAppStorage.PGAStatus.GoodsDelivered)
+        if (pga.status != LibAppStorage.PGAStatus.GoodsShipped)
             revert InvalidPGAStatus();
 
         address resolvedBuyer = LibAddressResolver.resolveToEOA(msg.sender);
