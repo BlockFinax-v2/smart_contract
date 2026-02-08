@@ -190,6 +190,26 @@ contract TradeFinanceFacet is ReentrancyGuard {
         uint256 timestamp
     );
 
+    event CollateralPaymentProcessed(
+        string indexed pgaId,
+        address indexed caller,
+        address indexed payer,
+        address token,
+        uint256 amount,
+        bool isSmartAccount,
+        uint256 timestamp
+    );
+
+    event IssuanceFeePaymentProcessed(
+        string indexed pgaId,
+        address indexed caller,
+        address indexed payer,
+        address token,
+        uint256 amount,
+        bool isSmartAccount,
+        uint256 timestamp
+    );
+
     event BlockFinaxTreasuryUpdated(
         address indexed oldTreasury,
         address indexed newTreasury
@@ -644,12 +664,37 @@ contract TradeFinanceFacet is ReentrancyGuard {
         // CRITICAL: Transfer from resolvedBuyer (EOA), not msg.sender (Smart Account)
         token.safeTransferFrom(resolvedBuyer, address(this), collateralAmount);
 
+        // Log payment details for tracking
+        bool isSmartAccount = msg.sender != resolvedBuyer;
+        emit CollateralPaymentProcessed(
+            pgaId,
+            msg.sender,
+            resolvedBuyer,
+            tokenAddress,
+            collateralAmount,
+            isSmartAccount,
+            block.timestamp
+        );
+
         // Update PGA status
         pga.collateralPaid = true;
         LibAppStorage.PGAStatus oldStatus = pga.status;
 
-        // If fee is also paid, notify logistics. Otherwise move to CollateralPaid
+        // If fee is also paid, issue certificate and notify logistics
         if (pga.issuanceFeePaid) {
+            // Issue certificate if not already issued
+            if (pga.certificateIssuedAt == 0) {
+                pga.certificateIssuedAt = block.timestamp;
+                _issueCertificate(pgaId);
+            }
+            pga.status = LibAppStorage.PGAStatus.CertificateIssued;
+            // Also notify logistics
+            emit PGAStatusChanged(
+                pgaId,
+                oldStatus,
+                LibAppStorage.PGAStatus.LogisticsNotified,
+                block.timestamp
+            );
             pga.status = LibAppStorage.PGAStatus.LogisticsNotified;
         } else {
             pga.status = LibAppStorage.PGAStatus.CollateralPaid;
@@ -729,13 +774,41 @@ contract TradeFinanceFacet is ReentrancyGuard {
         // CRITICAL: Transfer from resolvedBuyer (EOA)
         token.safeTransferFrom(resolvedBuyer, address(this), feeAmount);
 
+        // Log payment details for tracking
+        bool isSmartAccount = msg.sender != resolvedBuyer;
+        emit IssuanceFeePaymentProcessed(
+            pgaId,
+            msg.sender,
+            resolvedBuyer,
+            tokenAddress,
+            feeAmount,
+            isSmartAccount,
+            block.timestamp
+        );
+
         // Update PGA status
         pga.issuanceFeePaid = true;
         LibAppStorage.PGAStatus oldStatus = pga.status;
 
-        // If collateral is also paid, notify logistics. Otherwise stay in CollateralPaid
+        // Issue certificate immediately after issuance fee payment
+        if (pga.certificateIssuedAt == 0) {
+            pga.certificateIssuedAt = block.timestamp;
+            _issueCertificate(pgaId);
+        }
+
+        // If collateral is also paid, notify logistics and update status
         if (pga.collateralPaid) {
+            pga.status = LibAppStorage.PGAStatus.CertificateIssued;
+            // Also notify logistics - they can start processing
+            emit PGAStatusChanged(
+                pgaId,
+                oldStatus,
+                LibAppStorage.PGAStatus.LogisticsNotified,
+                block.timestamp
+            );
             pga.status = LibAppStorage.PGAStatus.LogisticsNotified;
+        } else {
+            pga.status = LibAppStorage.PGAStatus.CertificateIssued;
         }
 
         emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
@@ -799,10 +872,17 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (msg.sender != pga.logisticsPartner) revert("Only take-up partner");
         if (!pga.balancePaymentPaid) revert("Balance not paid");
 
+        // Mark transaction as completed after delivery confirmation
+        pga.certificateIssuedAt = block.timestamp;
         LibAppStorage.PGAStatus oldStatus = pga.status;
-        pga.status = LibAppStorage.PGAStatus.GoodsDelivered;
+        pga.status = LibAppStorage.PGAStatus.Completed;
+        s.totalActivePGAs--;
 
         emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
+        emit PGACompleted(pgaId, pga.buyer, pga.seller, block.timestamp);
+
+        // Emit certificate data for frontend
+        _issueCertificate(pgaId);
     }
 
     /**
