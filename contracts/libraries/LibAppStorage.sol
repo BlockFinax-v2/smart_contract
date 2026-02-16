@@ -84,6 +84,9 @@ library LibAppStorage {
         bool issuanceFeePaid;
         bool balancePaymentPaid;
         bool goodsShipped;
+        bool goodsDelivered; // Delivery confirmed by buyer
+        bool sellerPaymentClaimed; // Seller claimed their payment
+        address tokenAddress; // Token used for payments (set during collateral payment)
         string logisticPartner;
         address logisticsPartner; // Partner who takes up the delivery
         uint256 certificateIssuedAt;
@@ -109,10 +112,11 @@ library LibAppStorage {
         GoodsDelivered, // 8 - Goods delivered, awaiting balance payment
         BalancePaymentPaid, // 9 - Balance payment made, ready for certificate
         CertificateIssued, // 10 - Certificate issued to buyer
-        Completed, // 11 - Transaction fully completed
-        Rejected, // 12 - Rejected by financiers or seller
-        Expired, // 13 - Deadline expired without completion
-        Disputed // 14 - Delivery disputed by buyer
+        SellerPaymentClaimed, // 11 - Seller claimed their payment (90%)
+        Completed, // 12 - Transaction fully completed
+        Rejected, // 13 - Rejected by financiers or seller
+        Expired, // 14 - Deadline expired without completion
+        Disputed // 15 - Delivery disputed by buyer
     }
 
     struct DeliveryAgreement {
@@ -303,6 +307,7 @@ library LibAppStorage {
         mapping(string => uint256) proposalExecutionApprovals; // proposalId -> approval count
         uint256 revocationPeriod; // Time required before revocation (default 30 days)
         address blockFinaxTreasury; // Platform treasury for fee collection
+        uint256 platformFeePercentage; // Platform fee %: 0=not set (default 10%), 1-100=explicit value
     }
 
     function appStorage() internal pure returns (AppStorage storage s) {

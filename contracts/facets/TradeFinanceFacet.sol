@@ -57,6 +57,10 @@ contract TradeFinanceFacet is ReentrancyGuard {
     error IssuanceFeeNotPaid();
     error TreasuryNotSet();
     error InvalidTokenAddress();
+    error PaymentAlreadyClaimed();
+    error GoodsNotDelivered();
+    error UnauthorizedClaim();
+    error InvalidPercentage();
 
     // Constants
     uint256 private constant PRECISION = 1e6; // 6 decimals matching voting power normalization
@@ -122,6 +126,14 @@ contract TradeFinanceFacet is ReentrancyGuard {
         string indexed pgaId,
         address indexed logisticPartner,
         string logisticPartnerName,
+        string proofOfShipmentURI,
+        uint256 timestamp
+    );
+
+    event GoodsDelivered(
+        string indexed pgaId,
+        address indexed logisticPartner,
+        string proofOfDeliveryURI,
         uint256 timestamp
     );
 
@@ -129,6 +141,16 @@ contract TradeFinanceFacet is ReentrancyGuard {
         string indexed pgaId,
         address indexed buyer,
         uint256 balanceAmount,
+        uint256 timestamp
+    );
+
+    event BalancePaymentProcessed(
+        string indexed pgaId,
+        address indexed caller,
+        address indexed payer,
+        address token,
+        uint256 amount,
+        bool isSmartAccount,
         uint256 timestamp
     );
 
@@ -218,9 +240,13 @@ contract TradeFinanceFacet is ReentrancyGuard {
     event SellerPaymentReleased(
         string indexed pgaId,
         address indexed seller,
-        uint256 amount,
+        uint256 sellerAmount,
+        uint256 platformFee,
+        address tokenAddress,
         uint256 timestamp
     );
+
+    event ParameterUpdated(string indexed parameter, uint256 value);
 
     event Paused(address account);
     event Unpaused(address account);
@@ -664,6 +690,9 @@ contract TradeFinanceFacet is ReentrancyGuard {
         // CRITICAL: Transfer from resolvedBuyer (EOA), not msg.sender (Smart Account)
         token.safeTransferFrom(resolvedBuyer, address(this), collateralAmount);
 
+        // Store the token address for future payments (balance, seller claim)
+        pga.tokenAddress = tokenAddress;
+
         // Log payment details for tracking
         bool isSmartAccount = msg.sender != resolvedBuyer;
         emit CollateralPaymentProcessed(
@@ -730,6 +759,30 @@ contract TradeFinanceFacet is ReentrancyGuard {
      */
     function getBlockFinaxTreasury() external view returns (address) {
         return LibAppStorage.appStorage().blockFinaxTreasury;
+    }
+
+    /**
+     * @notice Set the platform fee percentage (governance only)
+     * @param _percentage Fee percentage (e.g., 10 for 10%)
+     */
+    function setPlatformFeePercentage(uint256 _percentage) external {
+        LibDiamond.enforceIsContractOwner();
+        if (_percentage == 0 || _percentage > 100) revert InvalidPercentage();
+
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        s.platformFeePercentage = _percentage;
+
+        emit ParameterUpdated("platformFeePercentage", _percentage);
+    }
+
+    /**
+     * @notice Get the current platform fee percentage
+     * @return Current platform fee percentage (0 means not set, returns 10% default)
+     */
+    function getPlatformFeePercentage() external view returns (uint256) {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        uint256 feePercentage = s.platformFeePercentage;
+        return feePercentage == 0 ? 10 : feePercentage;
     }
 
     /**
@@ -832,57 +885,171 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (pga.status != LibAppStorage.PGAStatus.LogisticsNotified)
             revert InvalidPGAStatus();
 
+        // Resolve to EOA for Account Abstraction compatibility
+        address resolvedLogistics = LibAddressResolver.resolveToEOA(msg.sender);
+
         // For MVP, we let any verified logistics partner (if we had a role)
         // take it up. For now, anyone can call it as long as they provide the attestation.
         LibAppStorage.PGAStatus oldStatus = pga.status;
         pga.status = LibAppStorage.PGAStatus.LogisticsTakeup;
-        pga.logisticsPartner = msg.sender;
+        pga.logisticsPartner = resolvedLogistics;
 
         emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
     }
 
     /**
      * @notice Logistics partner attests that goods have been shipped
+     * @param pgaId The PGA identifier
+     * @param proofOfShipmentURI IPFS URI of shipping documents (tracking, bill of lading, etc.)
      */
-    function confirmGoodsShipped(string calldata pgaId) external whenNotPaused {
+    function confirmGoodsShipped(
+        string calldata pgaId,
+        string calldata proofOfShipmentURI
+    ) external whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
         if (pga.status != LibAppStorage.PGAStatus.LogisticsTakeup)
             revert InvalidPGAStatus();
-        if (msg.sender != pga.logisticsPartner) revert("Only take-up partner");
+
+        // Resolve to EOA for Account Abstraction compatibility
+        address resolvedCaller = LibAddressResolver.resolveToEOA(msg.sender);
+        if (resolvedCaller != pga.logisticsPartner)
+            revert("Only take-up partner");
+
+        // Store proof of shipment document if provided
+        if (bytes(proofOfShipmentURI).length > 0) {
+            pga.uploadedDocuments.push(proofOfShipmentURI);
+        }
 
         LibAppStorage.PGAStatus oldStatus = pga.status;
         pga.status = LibAppStorage.PGAStatus.GoodsShipped;
 
+        emit GoodsShipped(
+            pgaId,
+            pga.logisticsPartner,
+            pga.logisticPartner,
+            proofOfShipmentURI,
+            block.timestamp
+        );
         emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
     }
 
     /**
      * @notice Logistics partner attests that goods have been delivered
+     * @param pgaId The PGA identifier
+     * @param proofOfDeliveryURI IPFS URI of delivery proof documents (signed receipt, photos, etc.)
      */
     function confirmGoodsDelivered(
-        string calldata pgaId
+        string calldata pgaId,
+        string calldata proofOfDeliveryURI
     ) external whenNotPaused {
         LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
         LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
 
         if (pga.status != LibAppStorage.PGAStatus.BalancePaymentPaid)
             revert InvalidPGAStatus();
-        if (msg.sender != pga.logisticsPartner) revert("Only take-up partner");
+
+        // Resolve to EOA for Account Abstraction compatibility
+        address resolvedCaller = LibAddressResolver.resolveToEOA(msg.sender);
+        if (resolvedCaller != pga.logisticsPartner)
+            revert("Only take-up partner");
         if (!pga.balancePaymentPaid) revert("Balance not paid");
 
-        // Mark transaction as completed after delivery confirmation
-        pga.certificateIssuedAt = block.timestamp;
-        LibAppStorage.PGAStatus oldStatus = pga.status;
-        pga.status = LibAppStorage.PGAStatus.Completed;
-        s.totalActivePGAs--;
+        // Store proof of delivery document if provided
+        if (bytes(proofOfDeliveryURI).length > 0) {
+            pga.uploadedDocuments.push(proofOfDeliveryURI);
+        }
 
+        // Mark goods as delivered (awaiting seller payment claim)
+        pga.goodsDelivered = true;
+        LibAppStorage.PGAStatus oldStatus = pga.status;
+        pga.status = LibAppStorage.PGAStatus.GoodsDelivered;
+
+        emit GoodsDelivered(
+            pgaId,
+            pga.logisticsPartner,
+            proofOfDeliveryURI,
+            block.timestamp
+        );
         emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
-        emit PGACompleted(pgaId, pga.buyer, pga.seller, block.timestamp);
 
         // Emit certificate data for frontend
         _issueCertificate(pgaId);
+    }
+
+    /**
+     * @notice Seller claims payment after goods are delivered
+     * @dev Transfers 90% to seller, 10% to platform treasury (configurable via governance)
+     * @param pgaId The PGA identifier
+     */
+    function claimSellerPayment(
+        string calldata pgaId
+    ) external whenNotPaused nonReentrant {
+        LibAppStorage.AppStorage storage s = LibAppStorage.appStorage();
+        LibAppStorage.PoolGuaranteeApplication storage pga = s.pgas[pgaId];
+
+        // Validation
+        if (pga.status == LibAppStorage.PGAStatus.None) revert PGANotFound();
+
+        // Verify caller is the seller
+        address resolvedSeller = LibAddressResolver.resolveToEOA(msg.sender);
+        address pgaSeller = LibAddressResolver.resolveToEOA(pga.seller);
+        if (resolvedSeller != pgaSeller) revert UnauthorizedClaim();
+
+        // Verify goods have been delivered
+        if (!pga.goodsDelivered) revert GoodsNotDelivered();
+
+        // Verify payment hasn't been claimed yet
+        if (pga.sellerPaymentClaimed) revert PaymentAlreadyClaimed();
+
+        // Verify treasury is set
+        if (s.blockFinaxTreasury == address(0)) revert TreasuryNotSet();
+
+        // Get platform fee percentage (0 = not set, use default 10%)
+        uint256 feePercentage = s.platformFeePercentage;
+        if (feePercentage == 0) {
+            feePercentage = 10; // Default to 10% when not explicitly set
+        }
+        if (feePercentage > 100) revert InvalidPercentage();
+
+        // Use the same token that was used for collateral/balance payments
+        if (pga.tokenAddress == address(0)) revert InvalidTokenAddress();
+        IERC20 token = IERC20(pga.tokenAddress);
+
+        // Calculate amounts
+        uint256 totalAmount = pga.tradeValue;
+        uint256 platformFee = (totalAmount * feePercentage) / 100;
+        uint256 sellerAmount = totalAmount - platformFee;
+
+        // Verify contract has sufficient balance
+        if (token.balanceOf(address(this)) < totalAmount)
+            revert InsufficientBalance();
+
+        // Mark as claimed BEFORE transfers (reentrancy protection)
+        pga.sellerPaymentClaimed = true;
+        LibAppStorage.PGAStatus oldStatus = pga.status;
+        pga.status = LibAppStorage.PGAStatus.SellerPaymentClaimed;
+
+        // Transfer to seller (resolvedSeller already validated above)
+        token.safeTransfer(pga.seller, sellerAmount);
+
+        // Transfer platform fee to treasury
+        token.safeTransfer(s.blockFinaxTreasury, platformFee);
+
+        // Decrease active PGAs count as transaction is complete
+        s.totalActivePGAs--;
+
+        emit PGAStatusChanged(pgaId, oldStatus, pga.status, block.timestamp);
+        emit SellerPaymentReleased(
+            pgaId,
+            pga.seller,
+            sellerAmount,
+            platformFee,
+            pga.tokenAddress,
+            block.timestamp
+        );
+        emit PGACompleted(pgaId, pga.buyer, pga.seller, block.timestamp);
     }
 
     /**
@@ -913,16 +1080,29 @@ contract TradeFinanceFacet is ReentrancyGuard {
         uint256 balanceAmount = pga.tradeValue - pga.collateralAmount;
         if (balanceAmount == 0) revert InvalidAmount(); // Must have balance to pay
 
-        // Transfer balance to Treasury Pool (this contract)
-        IERC20 usdcToken = IERC20(s.usdcToken);
+        // Use the same token that was used for collateral payment
+        if (pga.tokenAddress == address(0)) revert InvalidTokenAddress();
+        IERC20 token = IERC20(pga.tokenAddress);
 
-        // FEAT: Use resolvedBuyer for funds transfer
-        if (usdcToken.balanceOf(resolvedBuyer) < balanceAmount)
+        // FEAT: Use resolvedBuyer for funds transfer (AA compatible)
+        if (token.balanceOf(resolvedBuyer) < balanceAmount)
             revert InsufficientBalance();
-        if (usdcToken.allowance(resolvedBuyer, address(this)) < balanceAmount)
+        if (token.allowance(resolvedBuyer, address(this)) < balanceAmount)
             revert InsufficientAllowance();
 
-        usdcToken.safeTransferFrom(resolvedBuyer, address(this), balanceAmount);
+        token.safeTransferFrom(resolvedBuyer, address(this), balanceAmount);
+
+        // Log payment details for tracking
+        bool isSmartAccount = msg.sender != resolvedBuyer;
+        emit BalancePaymentProcessed(
+            pgaId,
+            msg.sender,
+            resolvedBuyer,
+            pga.tokenAddress,
+            balanceAmount,
+            isSmartAccount,
+            block.timestamp
+        );
 
         // Update PGA status to BalancePaymentPaid
         pga.balancePaymentPaid = true;
@@ -1050,6 +1230,8 @@ contract TradeFinanceFacet is ReentrancyGuard {
                     pgaId,
                     pga.seller,
                     totalPayment,
+                    0, // No platform fee in this legacy function
+                    s.usdcToken,
                     block.timestamp
                 );
             }
@@ -1146,6 +1328,8 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pgaId,
             pga.seller,
             totalPayment,
+            0, // No platform fee in this legacy function
+            s.usdcToken,
             block.timestamp
         );
     }
@@ -1274,7 +1458,13 @@ contract TradeFinanceFacet is ReentrancyGuard {
         if (pga.status == LibAppStorage.PGAStatus.Completed)
             revert InvalidPGAStatus();
 
-        IERC20 usdcToken = IERC20(s.usdcToken);
+        // Use the stored token address for refunds (if payments were made)
+        address refundToken = pga.tokenAddress;
+        if (refundToken == address(0)) {
+            // If no token set (no collateral paid yet), use default USDC
+            refundToken = s.usdcToken;
+        }
+        IERC20 token = IERC20(refundToken);
 
         // Refund any payments made
         uint256 totalRefund = 0;
@@ -1290,7 +1480,7 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pga.collateralPaid = false;
             pga.balancePaymentPaid = false;
 
-            usdcToken.safeTransfer(pga.buyer, totalRefund);
+            token.safeTransfer(pga.buyer, totalRefund);
         }
 
         LibAppStorage.PGAStatus oldStatus = pga.status;
@@ -1339,6 +1529,9 @@ contract TradeFinanceFacet is ReentrancyGuard {
             bool issuanceFeePaid,
             bool balancePaymentPaid,
             bool goodsShipped,
+            bool goodsDelivered,
+            bool sellerPaymentClaimed,
+            address tokenAddress,
             string memory logisticPartner,
             address logisticsPartner,
             uint256 certificateIssuedAt,
@@ -1375,6 +1568,9 @@ contract TradeFinanceFacet is ReentrancyGuard {
             pga.issuanceFeePaid,
             pga.balancePaymentPaid,
             pga.goodsShipped,
+            pga.goodsDelivered,
+            pga.sellerPaymentClaimed,
+            pga.tokenAddress,
             pga.logisticPartner,
             pga.logisticsPartner,
             pga.certificateIssuedAt,
